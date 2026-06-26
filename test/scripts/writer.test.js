@@ -79,11 +79,12 @@ describe('writePostrm', () => {
     assert.ok(content.includes('"purge"'));
   });
 
-  it('removes packages in reverse order', async () => {
+  it('removes packages from persistent list', async () => {
     await writePostrm(tmpDir, manifest);
 
     const content = await readFile(join(tmpDir, 'postrm'), 'utf-8');
-    assert.ok(content.includes('i>0;i--'), 'should iterate in reverse');
+    assert.ok(content.includes('PACKAGE_NAMES'), 'should read package list');
+    assert.ok(content.includes('dpkg -r'), 'should call dpkg -r for removal');
   });
 
   it('includes bundle version', async () => {
