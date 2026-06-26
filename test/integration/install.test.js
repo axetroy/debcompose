@@ -59,6 +59,24 @@ async function pkgInstalled(name) {
   }
 }
 
+async function waitForPkgInstalled(name, timeoutMs = 30000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await pkgInstalled(name)) return true;
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return false;
+}
+
+async function waitForPkgRemoved(name, timeoutMs = 30000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (!(await pkgInstalled(name))) return true;
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return false;
+}
+
 async function ensureRemoved(name) {
   try {
     await execFileAsync('sudo', ['dpkg', '--purge', name]);
@@ -165,15 +183,17 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
 
     await installBundleAndVerify(bundlePath);
 
-    assert.equal(await pkgInstalled(PKG_ALPHA), true, 'alpha should be installed by postinst');
-    assert.equal(await pkgInstalled(PKG_BETA), true, 'beta should be installed by postinst');
+    // Sub-packages are installed asynchronously by a background process (to avoid dpkg lock contention)
+    assert.ok(await waitForPkgInstalled(PKG_ALPHA), 'alpha should be installed by postinst');
+    assert.ok(await waitForPkgInstalled(PKG_BETA), 'beta should be installed by postinst');
   });
 
   it('bundle removal removes sub-packages', async () => {
     await execFileAsync('sudo', ['dpkg', '-r', BUNDLE_NAME]);
 
-    assert.equal(await pkgInstalled(PKG_ALPHA), false, 'alpha should be removed by postrm');
-    assert.equal(await pkgInstalled(PKG_BETA), false, 'beta should be removed by postrm');
+    // Sub-packages are removed asynchronously by a background process
+    assert.ok(await waitForPkgRemoved(PKG_ALPHA), 'alpha should be removed by postrm');
+    assert.ok(await waitForPkgRemoved(PKG_BETA), 'beta should be removed by postrm');
   });
 
   it('logs installation events', async () => {
@@ -210,6 +230,9 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
 
     await installBundleAndVerify(result.outputPath);
 
+    assert.ok(await waitForPkgInstalled(PKG_ALPHA), 'alpha should be installed');
+    assert.ok(await waitForPkgInstalled(PKG_BETA), 'beta should be installed');
+
     const { stdout: alphaVer } = await execFileAsync('dpkg', ['--show', '--showformat=${Version}', PKG_ALPHA]);
     assert.equal(alphaVer.trim(), '3.0.0', 'alpha should be upgraded to 3.0.0');
 
@@ -217,7 +240,7 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
     assert.equal(betaVer.trim(), '4.0.0', 'beta should be upgraded to 4.0.0');
 
     await execFileAsync('sudo', ['dpkg', '-r', BUNDLE_NAME]);
-    assert.equal(await pkgInstalled(PKG_ALPHA), false, 'alpha should be removed after upgrade');
-    assert.equal(await pkgInstalled(PKG_BETA), false, 'beta should be removed after upgrade');
+    assert.ok(await waitForPkgRemoved(PKG_ALPHA), 'alpha should be removed after upgrade');
+    assert.ok(await waitForPkgRemoved(PKG_BETA), 'beta should be removed after upgrade');
   });
 });

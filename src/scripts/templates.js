@@ -41,22 +41,32 @@ if [ ! -f "$MANIFEST_PATH" ]; then
     exit 1
 fi
 
-while IFS= read -r file; do
-    pkg_path="$DEB_DIR/$file"
-    if [ ! -f "$pkg_path" ]; then
-        log "ERROR: Package file not found: $pkg_path"
-        exit 1
+# Launch sub-package installation in background to avoid dpkg lock contention
+{
+    if command -v fuser >/dev/null 2>&1; then
+        while fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do
+            sleep 1
+        done
     fi
-    log "Installing: $file"
-    if dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
-        log "Installed: $file"
-    else
-        log "ERROR: Failed to install: $file"
-        exit 1
-    fi
-done < <(awk -F'"' '/"file": "/ {print $4}' "$MANIFEST_PATH")
 
-log "Bundle v${version} installation completed"
+    while IFS= read -r file; do
+        pkg_path="$DEB_DIR/$file"
+        if [ ! -f "$pkg_path" ]; then
+            log "ERROR: Package file not found: $pkg_path"
+            exit 1
+        fi
+        log "Installing: $file"
+        if dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
+            log "Installed: $file"
+        else
+            log "ERROR: Failed to install: $file"
+            exit 1
+        fi
+    done < <(awk -F'"' '/"file": "/ {print $4}' "$MANIFEST_PATH")
+
+    log "Bundle v${version} installation completed"
+} &
+
 exit 0
 `;
 }
@@ -94,17 +104,27 @@ if [ ! -f "$MANIFEST_PATH" ]; then
     exit 0
 fi
 
-names=$(awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_PATH")
-for name in $names; do
-    log "Removing: $name"
-    if dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
-        log "Removed: $name"
-    else
-        log "WARN: Failed to remove: $name (may not be installed)"
+# Launch sub-package removal in background to avoid dpkg lock contention
+{
+    if command -v fuser >/dev/null 2>&1; then
+        while fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do
+            sleep 1
+        done
     fi
-done
 
-log "Bundle v${version} removal completed"
+    names=$(awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_PATH")
+    for name in $names; do
+        log "Removing: $name"
+        if dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
+            log "Removed: $name"
+        else
+            log "WARN: Failed to remove: $name (may not be installed)"
+        fi
+    done
+
+    log "Bundle v${version} removal completed"
+} &
+
 exit 0
 `;
 }
