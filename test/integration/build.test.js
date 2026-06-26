@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdir, writeFile, rm, stat } from 'node:fs/promises';
+import { mkdir, writeFile, rm, stat, readdir } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -127,9 +127,12 @@ describe('build integration', { skip: hasDpkg ? false : 'dpkg-deb not available'
       maintainer: 'Acme <acme@test.com>',
     });
 
-    const { stdout } = await execFileAsync('dpkg-deb', ['--contents', result.outputPath]);
-    assert.ok(stdout.includes('./DEBIAN/postinst'));
-    assert.ok(stdout.includes('./DEBIAN/postrm'));
+    const extractDir = join(tmpDir, 'ctl-extract');
+    await mkdir(extractDir, { recursive: true });
+    await execFileAsync('dpkg-deb', ['-e', result.outputPath, extractDir]);
+    const files = await readdir(extractDir);
+    assert.ok(files.includes('postinst'));
+    assert.ok(files.includes('postrm'));
   });
 
   it('output .deb contains DEBIAN/md5sums', async () => {
@@ -142,8 +145,11 @@ describe('build integration', { skip: hasDpkg ? false : 'dpkg-deb not available'
       maintainer: 'Acme <acme@test.com>',
     });
 
-    const { stdout } = await execFileAsync('dpkg-deb', ['--contents', result.outputPath]);
-    assert.ok(stdout.includes('./DEBIAN/md5sums'));
+    const extractDir = join(tmpDir, 'md5-extract');
+    await mkdir(extractDir, { recursive: true });
+    await execFileAsync('dpkg-deb', ['-e', result.outputPath, extractDir]);
+    const files = await readdir(extractDir);
+    assert.ok(files.includes('md5sums'));
   });
 
   it('build fails with clear error when dpkg-deb is missing', async () => {
