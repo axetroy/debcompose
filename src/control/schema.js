@@ -6,8 +6,9 @@
  * @property {string} maintainer      - Maintainer string
  * @property {string} description     - Description (newlines for continuation lines)
  * @property {string} [depends]       - Dependency string
- * @property {string} [section]       - Package section (default: admin)
+ * @property {string} [section]       - Package section (default: misc)
  * @property {string} [priority]      - Package priority (default: optional)
+ * @property {string} [license]       - License identifier
  * @property {number} [installedSize] - Installed size in kilobytes
  */
 
@@ -27,8 +28,9 @@ const CONTROL_FIELDS = {
   description: { required: true, label: 'Description' },
   depends: { required: false, label: 'Depends' },
   installedSize: { required: false, label: 'Installed-Size' },
-  section: { required: false, label: 'Section', default: 'admin' },
+  section: { required: false, label: 'Section', default: 'misc' },
   priority: { required: false, label: 'Priority', default: 'optional' },
+  license: { required: false, label: 'License' },
 };
 
 /**

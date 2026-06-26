@@ -57,7 +57,7 @@ describe('writeControl', () => {
     });
 
     const content = await readFile(join(tmpDir, 'control'), 'utf-8');
-    assert.ok(content.includes('Section: admin'));
+    assert.ok(content.includes('Section: misc'));
     assert.ok(content.includes('Priority: optional'));
   });
 

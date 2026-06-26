@@ -32,7 +32,7 @@ describe('validateControl', () => {
 describe('createControlData', () => {
   it('fills defaults for optional fields', () => {
     const data = createControlData(MINIMAL_PARAMS);
-    assert.equal(data.section, 'admin');
+    assert.equal(data.section, 'misc');
     assert.equal(data.priority, 'optional');
   });
 

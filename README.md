@@ -73,6 +73,9 @@ debcompose <deb-dir> [options]    # shortcut
 | `--arch` | | Target architecture (amd64, i386, arm64, armhf, etc.) | `amd64` |
 | `--maintainer` | | Maintainer field | `Unknown <unknown>` |
 | `--description` | | Description field | auto-generated |
+| `--section` | | Package section (e.g., utils, net, devel) | `misc` |
+| `--priority` | | Package priority (required, important, standard, optional, extra) | `optional` |
+| `--license` | | License identifier (e.g., GPL, MIT, Apache) | (empty) |
 
 > **Note**: The control file format follows the [Debian Policy Manual](https://www.debian.org/doc/debian-policy/ch-controlfields.html).
 
