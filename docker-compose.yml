@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  debcompose:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DEB_COMPOSE_NAME=my-product
+      - DEB_COMPOSE_VERSION=1.0.0
+      - DEB_COMPOSE_ARCH=amd64
+      - DEB_COMPOSE_SECTION=misc
+      - DEB_COMPOSE_PRIORITY=optional
+      - DEB_COMPOSE_LICENSE=MIT
+    volumes:
+      - ./packages:/app/packages
+      - ./dist:/app/dist

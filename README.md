@@ -30,6 +30,71 @@ Requires **Node.js >= 22** and **dpkg-deb** (included with Debian/Ubuntu systems
 
 ---
 
+## Docker Deployment
+
+You can run the DebCompose HTTP server in a Docker container using the provided `Dockerfile` and `docker-compose.yml`.
+
+### Using docker-compose (recommended)
+
+```bash
+# Build and start the server
+docker-compose up -d
+
+# Or run in foreground
+docker-compose up
+```
+
+This will start the server at `http://localhost:3000`. The server loads configuration from the following environment variables (set in `docker-compose.yml` or passed as `docker run -e`):
+
+- `DEB_COMPOSE_NAME`
+- `DEB_COMPOSE_VERSION`
+- `DEB_COMPOSE_ARCH`
+- `DEB_COMPOSE_MAINTAINER`
+- `DEB_COMPOSE_DESCRIPTION`
+- `DEB_COMPOSE_SECTION`
+- `DEB_COMPOSE_PRIORITY`
+- `DEB_COMPOSE_LICENSE`
+- `DEB_COMPOSE_PORT` (default `3000`)
+
+Default `docker-compose.yml` mounts `./packages` (your .deb files) and `./dist` (output bundles) so you can build bundles via the web UI or the HTTP API.
+
+### Using Docker directly
+
+```bash
+# Build the image
+docker build -t debcompose .
+
+# Run the server (ports 3000)
+docker run -d \
+  --name debcompose \
+  -p 3000:3000 \
+  -e DEB_COMPOSE_NAME=my-product \
+  -e DEB_COMPOSE_VERSION=1.0.0 \
+  -e DEB_COMPOSE_ARCH=amd64 \
+  -e DEB_COMPOSE_SECTION=misc \
+  -e DEB_COMPOSE_PRIORITY=optional \
+  -e DEB_COMPOSE_LICENSE=MIT \
+  -v $(pwd)/packages:/app/packages \
+  -v $(pwd)/dist:/app/dist \
+  debcompose
+```
+
+### Building bundles via Docker
+
+You can also build bundles without the HTTP server by running the CLI inside the container:
+
+```bash
+docker run --rm \
+  -v $(pwd)/packages:/app/packages \
+  -v $(pwd)/dist:/app/dist \
+  debcompose build /app/packages \
+  --output /app/dist \
+  --version 2.0.0 \
+  --name my-product
+```
+
+---
+
 ## Quick Start
 
 ```bash
