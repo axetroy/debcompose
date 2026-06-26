@@ -1,0 +1,22 @@
+{
+  "name": "debcompose",
+  "version": "0.1.0",
+  "description": "A tool for composing multiple .deb packages into a single bundle installer",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./src/main.js",
+  "bin": {
+    "debcompose": "./src/main.js"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "test:watch": "node --test --watch"
+  },
+  "private": true,
+  "license": "MIT"
+}
