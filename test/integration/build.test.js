@@ -27,7 +27,8 @@ async function createMinimalDeb(outputDir, name, version) {
 Version: ${version}
 Architecture: all
 Maintainer: Test <test@test.com>
-Description: Test package ${name}`;
+Description: Test package ${name}
+`;
 
   await writeFile(join(debianDir, 'control'), control, 'utf-8');
   await execFileAsync('dpkg-deb', ['-b', pkgDir, join(outputDir, `${name}.deb`)]);
