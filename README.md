@@ -96,6 +96,35 @@ Shortcut (omitting `build`):
 debcompose ./packages -o ./dist -v 1.2.0 -n my-product
 ```
 
+### Environment Variables
+
+You can set default configuration values using environment variables. These are useful for Docker deployments or CI/CD pipelines:
+
+| Environment Variable | CLI Option | Description | Default |
+|---------------------|------------|-------------|---------|
+| `DEB_COMPOSE_NAME` | `--name` | Package name | auto-detected |
+| `DEB_COMPOSE_VERSION` | `--version` | Bundle version | `1.0.0` |
+| `DEB_COMPOSE_ARCH` | `--arch` | Target architecture | `amd64` |
+| `DEB_COMPOSE_MAINTAINER` | `--maintainer` | Maintainer string | `Unknown <unknown>` |
+| `DEB_COMPOSE_DESCRIPTION` | `--description` | Package description | auto-generated |
+| `DEB_COMPOSE_SECTION` | `--section` | Package section | `misc` |
+| `DEB_COMPOSE_PRIORITY` | `--priority` | Package priority | `optional` |
+| `DEB_COMPOSE_LICENSE` | `--license` | License identifier | (empty) |
+| `DEB_COMPOSE_PORT` | (server only) | HTTP server port | `3000` |
+
+Example:
+
+```bash
+export DEB_COMPOSE_NAME=my-product
+export DEB_COMPOSE_VERSION=2.0.0
+export DEB_COMPOSE_ARCH=arm64
+export DEB_COMPOSE_SECTION=utils
+export DEB_COMPOSE_PRIORITY=optional
+export DEB_COMPOSE_LICENSE=MIT
+
+debcompose build ./packages
+```
+
 ---
 
 ## Bundle Structure
