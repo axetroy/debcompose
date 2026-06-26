@@ -41,7 +41,7 @@ if [ ! -f "$MANIFEST_PATH" ]; then
     exit 1
 fi
 
-jq -r '.packages[].file' "$MANIFEST_PATH" | while read -r file; do
+while IFS= read -r file; do
     pkg_path="$DEB_DIR/$file"
     if [ ! -f "$pkg_path" ]; then
         log "ERROR: Package file not found: $pkg_path"
@@ -54,7 +54,7 @@ jq -r '.packages[].file' "$MANIFEST_PATH" | while read -r file; do
         log "ERROR: Failed to install: $file"
         exit 1
     fi
-done
+done < <(jq -r '.packages[].file' "$MANIFEST_PATH")
 
 log "Bundle v${version} installation completed"
 exit 0

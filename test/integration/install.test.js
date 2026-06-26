@@ -67,6 +67,44 @@ async function ensureRemoved(name) {
   }
 }
 
+async function getLogContent() {
+  try {
+    return await readFile(LOG_FILE, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+async function installBundleAndVerify(path) {
+  let stderr = '';
+  try {
+    const result = await execFileAsync('sudo', ['dpkg', '-i', path]);
+    stderr = result.stderr || '';
+  } catch (err) {
+    const log = await getLogContent();
+    const detail = [
+      `dpkg exit code: ${err.code}`,
+      `dpkg stderr: ${(err.stderr || '').slice(0, 1000)}`,
+      log ? `log file:\n${log.slice(0, 2000)}` : 'log file not found',
+    ].join('\n');
+    throw new Error(`Bundle install failed\n${detail}`);
+  }
+}
+
+async function extractPostinst(path) {
+  const dir = join(tmpdir(), `ctl-extract-${Date.now()}`);
+  await mkdir(dir, { recursive: true });
+  try {
+    await execFileAsync('dpkg-deb', ['-e', path, dir]);
+    const content = await readFile(join(dir, 'postinst'), 'utf-8');
+    return content;
+  } catch {
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 const hasDpkg = await hasDpkgDeb();
 const sudoAvailable = await hasSudo();
 
@@ -110,13 +148,24 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
     }
   });
 
-  it('bundle installs sub-packages', async () => {
+  it('pre-install sanity: bundle contains postinst and correct manifest', async () => {
     assert.ok(bundlePath, 'bundle must have been built in before hook');
 
+    const { stdout: contents } = await execFileAsync('dpkg-deb', ['--contents', bundlePath]);
+    assert.ok(contents.includes('opt/bundle/manifest.json'), 'bundle must contain manifest.json');
+    assert.ok(contents.includes('opt/bundle/deb-e2e-alpha.deb'), 'bundle must contain alpha.deb');
+    assert.ok(contents.includes('opt/bundle/deb-e2e-beta.deb'), 'bundle must contain beta.deb');
+
+    const postinst = await extractPostinst(bundlePath);
+    assert.ok(postinst, 'postinst must exist in bundle');
+    assert.ok(postinst.includes('/opt/bundle/manifest.json'), 'postinst must reference manifest path');
+  });
+
+  it('bundle installs sub-packages', async () => {
     assert.equal(await pkgInstalled(PKG_ALPHA), false, 'alpha should not be installed yet');
     assert.equal(await pkgInstalled(PKG_BETA), false, 'beta should not be installed yet');
 
-    await execFileAsync('sudo', ['dpkg', '-i', bundlePath]);
+    await installBundleAndVerify(bundlePath);
 
     assert.equal(await pkgInstalled(PKG_ALPHA), true, 'alpha should be installed by postinst');
     assert.equal(await pkgInstalled(PKG_BETA), true, 'beta should be installed by postinst');
@@ -130,12 +179,8 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
   });
 
   it('logs installation events', async () => {
-    let logContent;
-    try {
-      logContent = await readFile(LOG_FILE, 'utf-8');
-    } catch {
-      assert.fail(`log file ${LOG_FILE} not found`);
-    }
+    const logContent = await getLogContent();
+    assert.ok(logContent, `log file ${LOG_FILE} should exist`);
 
     assert.ok(logContent.includes(BUNDLE_VERSION), 'log should contain bundle version');
     assert.ok(logContent.includes(PKG_ALPHA), 'log should contain alpha package name');
@@ -165,7 +210,7 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
       description: 'E2E test bundle v2',
     });
 
-    await execFileAsync('sudo', ['dpkg', '-i', result.outputPath]);
+    await installBundleAndVerify(result.outputPath);
 
     const { stdout: alphaVer } = await execFileAsync('dpkg', ['--show', '--showformat=${Version}', PKG_ALPHA]);
     assert.equal(alphaVer.trim(), '3.0.0', 'alpha should be upgraded to 3.0.0');
@@ -176,7 +221,5 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
     await execFileAsync('sudo', ['dpkg', '-r', BUNDLE_NAME]);
     assert.equal(await pkgInstalled(PKG_ALPHA), false, 'alpha should be removed after upgrade');
     assert.equal(await pkgInstalled(PKG_BETA), false, 'beta should be removed after upgrade');
-
-    await rm(debDir, { recursive: true, force: true });
   });
 });
