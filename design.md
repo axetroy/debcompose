@@ -512,7 +512,88 @@ B 未安装
 
 ---
 
-# 12. 后续扩展
+# 12. HTTP 服务器
+
+提供一个 Web 服务器，用于聚合打包模式（Bundle）创建和调试。
+
+## 12.1 Web 界面功能
+
+启动一个 Web 服务，提供图形化界面让用户选择 N 个 deb 包。
+
+* 上传 Deb 文件
+* 显示包列表
+* 选择安装顺序
+* 预览 Bundle 结构
+* 生成 Manifest
+
+## 12.2 HTTP API
+
+### 12.2.1 包上传
+
+```text
+POST /api/packages/upload
+
+Content-Type: multipart/form-data
+
+Form Data:
+  package: deb file
+```
+
+### 12.2.2 生成 Bundle
+
+```text
+POST /api/bundles/generate
+
+Content-Type: application/json
+
+Body:
+{
+    "packages": [
+        {
+            "name": "runtime",
+            "file": "runtime_1.0.0_amd64.deb"
+        },
+        {
+            "name": "server", 
+            "file": "server_2.0.0_amd64.deb"
+        }
+    ],
+    "order": ["runtime", "server"]
+}
+```
+
+### 12.2.3 下载 Bundle
+
+```text
+GET /api/bundles/{bundle_id}
+```
+
+## 12.3 组件架构
+
+```text
+                 +-----------------------+
+                 |   Web 服务器 (Node.js) |
+                 +-----------+-----------+
+                            |
+                 HTTP API  |  Web Socket  |
+                            |
+            +-----------------+------------------+
+            |                                    |
+          请求/响应                          实时更新
+            |                                    |
+     Bundle 生成器                         UI
+```
+
+## 12.4 使用场景
+
+* 快速组装多个 Deb 为 Bundle
+* 仅需 deb 文件，无需直接使用 Node Builder
+* 图形化操作，适合非技术用户
+* 离线环境调试 Bundle
+
+---
+
+# 13. 后续扩展
 
 未来可增加：
 

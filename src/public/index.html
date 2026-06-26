@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DebCompose - Bundle Generator</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; line-height: 1.6; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; border-radius: 8px; }
+        .package-item { display: flex; align-items: center; justify-content: space-between; margin: 0.5rem 0; padding: 0.5rem; background: #f4f4f4; border-radius: 4px; }
+        .package-item button { cursor: pointer; }
+        .controls { margin-top: 1rem; }
+        .btn-primary { background: #007bff; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+        .btn-primary:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DebCompose Bundle Generator</h1>
+        
+        <div class="section">
+            <h3>1. Upload Packages</h3>
+            <input type="file" id="fileInput" multiple accept=".deb">
+            <button class="btn-primary" onclick="uploadFiles()">Upload</button>
+            <div id="uploadStatus"></div>
+        </div>
+
+        <div class="section">
+            <h3>2. Select and Order Packages</h3>
+            <div id="packageList">No packages uploaded yet.</div>
+            <div class="controls">
+                <button class="btn-primary" onclick="generateBundle()">Generate Bundle</button>
+            </div>
+        </div>
+
+        <div id="result" class="section" style="display:none;">
+            <h3>3. Result</h3>
+            <p id="resultMessage"></p>
+            <a id="downloadLink" href="#" class="btn-primary" style="text-decoration:none; display:inline-block;">Download Bundle</a>
+        </div>
+    </div>
+
+    <script>
+        let uploadedPackages = [];
+
+        async function uploadFiles() {
+            const fileInput = document.getElementById('fileInput');
+            const status = document.getElementById('uploadStatus');
+            const files = fileInput.files;
+
+            if (files.length === 0) return alert('Please select files first');
+
+            status.innerText = 'Uploading...';
+            
+            for (let file of files) {
+                const formData = new FormData();
+                formData.append('package', file);
+
+                try {
+                    const response = await fetch('/api/packages/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.filename) {
+                        uploadedPackages.push({
+                            name: data.originalName,
+                            id: data.filename
+                        });
+                    }
+                } catch (err) {
+                    console.error('Upload failed', err);
+                }
+            }
+
+            status.innerText = 'Upload complete!';
+            updatePackageList();
+        }
+
+        function updatePackageList() {
+            const list = document.getElementById('packageList');
+            if (uploadedPackages.length === 0) {
+                list.innerText = 'No packages uploaded yet.';
+                return;
+            }
+
+            list.innerHTML = '<strong>Drag to reorder (simulation):</strong><br>';
+            uploadedPackages.forEach((pkg, index) => {
+                list.innerHTML += `
+                    <div class="package-item">
+                        <span>${pkg.name}</span>
+                        <div>
+                            <button onclick="move(${index}, -1)">↑</button>
+                            <button onclick="move(${index}, 1)">↓</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function move(index, direction) {
+            const target = index + direction;
+            if (target < 0 || target >= uploadedPackages.length) return;
+            const temp = uploadedPackages[index];
+            uploadedPackages[index] = uploadedPackages[target];
+            uploadedPackages[target] = temp;
+            updatePackageList();
+        }
+
+        async function generateBundle() {
+            if (uploadedPackages.length === 0) return alert('No packages selected');
+
+            const response = await fetch('/api/bundles/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    packages: uploadedPackages,
+                    order: uploadedPackages.map(p => p.name)
+                })
+            });
+
+            const data = await response.json();
+            if (data.bundleId) {
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('resultMessage').innerText = 'Bundle generated: ' + data.bundleId;
+                document.getElementById('downloadLink').href = data.downloadUrl;
+            } else {
+                alert('Error: ' + data.error);
+            }
+        }
+    </script>
+</body>
+</html>

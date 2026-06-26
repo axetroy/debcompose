@@ -50,10 +50,19 @@ sudo dpkg -i dist/my-product-installer_1.0.0_amd64.deb
 
 ## CLI Reference
 
+### `serve` — Start the HTTP server
+
+```bash
+debcompose serve
+```
+
+Starts a web server at `http://localhost:3000` for creating and debugging bundles via a web UI.
+
 ### `build` — Build a bundle
 
 ```bash
 debcompose build <deb-dir> [options]
+debcompose <deb-dir> [options]    # shortcut
 ```
 
 | Option | Short | Description | Default |
@@ -76,21 +85,11 @@ debcompose build ./packages \
   --maintainer "Acme Corp <support@acme.com>"
 ```
 
-### `manifest generate` — Generate manifest.json only
+Shortcut (omitting `build`):
 
 ```bash
-debcompose manifest generate <deb-dir> [output-dir] [version]
+debcompose ./packages -o ./dist -v 1.2.0 -n my-product
 ```
-
-Scans a directory for `.deb` files, extracts their package names via `dpkg-deb`, and writes a `manifest.json`.
-
-### `generate debian` — Generate DEBIAN directory only
-
-```bash
-debcompose generate debian <deb-dir> [output-dir]
-```
-
-Generates `DEBIAN/control`, `DEBIAN/postinst`, and `DEBIAN/postrm` from the `.deb` files in `<deb-dir>`.
 
 ---
 
@@ -188,15 +187,15 @@ The project uses **zero external dependencies** — only Node.js >= 22 built-in 
 
 ```
 src/
-├── main.js           CLI entry point
-├── logger/           Logging abstraction
-├── error/            Error types
-├── deb/              dpkg-deb wrapper
-├── manifest/         Manifest read/write/validate
-├── control/          DEBIAN/control generator
-├── scripts/          postinst/postrm generator
-├── packager/         dpkg-deb -b wrapper
-└── builder/          Build orchestrator
+├── cli.js                 CLI entry point
+├── logger/                 Logging abstraction
+├── error/                  Error types
+├── deb/                    dpkg-deb wrapper
+├── manifest/               Manifest read/write/validate
+├── control/                DEBIAN/control generator
+├── scripts/                postinst/postrm generator
+├── packager/               dpkg-deb -b wrapper
+└── builder/                Build orchestrator
 ```
 
 ---

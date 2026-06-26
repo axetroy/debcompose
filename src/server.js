@@ -1,0 +1,74 @@
+import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'node:fs/promises';
+import { BundleBuilder } from './services/BundleBuilder.js';
+
+const port = 3000;
+const bundleBuilder = new BundleBuilder();
+const app = express();
+
+const upload = multer({ 
+  dest: 'uploads/',
+  fileFilter: (req, file, cb) => {
+    if (file.originalname.endsWith('.deb')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only .deb files are allowed'));
+    }
+  }
+});
+
+app.use(express.json());
+app.use(express.static('src/public'));
+
+app.post('/api/packages/upload', upload.single('package'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({ 
+    message: 'File uploaded successfully', 
+    filename: req.file.filename, 
+    originalName: req.file.originalname 
+  });
+});
+
+app.post('/api/bundles/generate', async (req, res) => {
+  const { packages, order } = req.body;
+  if (!packages || !order) return res.status(400).json({ error: 'Missing packages or order' });
+
+  try {
+    const result = await bundleBuilder.build({
+      packages: packages.map(p => ({ name: p.name, path: path.join('uploads', p.id) })),
+      order,
+      outputDir: 'dist'
+    });
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json({ 
+      message: 'Bundle generated successfully', 
+      bundleId: result.bundleId, 
+      downloadUrl: `/api/bundles/${result.bundleId}` 
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate bundle' });
+  }
+});
+
+app.get('/api/bundles/:id', async (req, res) => {
+  const { id } = req.params;
+  const filePath = path.join('dist', id);
+  try {
+    await fs.access(filePath);
+    res.download(filePath);
+  } catch {
+    res.status(404).send('Bundle not found');
+  }
+});
+
+export function startServer() {
+  app.listen(port, () => {
+    console.log(`DebCompose HTTP Server running at http://localhost:${port}`);
+  });
+}
