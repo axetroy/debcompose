@@ -85,6 +85,13 @@ async function ensureRemoved(name) {
   }
 }
 
+async function getPkgVersion(name) {
+  const { stdout } = await execFileAsync('dpkg', ['--status', name]);
+  const match = stdout.match(/^Version: (.+)$/m);
+  if (!match) throw new Error(`Version not found for package ${name}`);
+  return match[1];
+}
+
 async function getLogContent() {
   try {
     return await readFile(LOG_FILE, 'utf-8');
@@ -233,11 +240,8 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
     assert.ok(await waitForPkgInstalled(PKG_ALPHA), 'alpha should be installed');
     assert.ok(await waitForPkgInstalled(PKG_BETA), 'beta should be installed');
 
-    const { stdout: alphaVer } = await execFileAsync('dpkg', ['--show', '--showformat=${Version}', PKG_ALPHA]);
-    assert.equal(alphaVer.trim(), '3.0.0', 'alpha should be upgraded to 3.0.0');
-
-    const { stdout: betaVer } = await execFileAsync('dpkg', ['--show', '--showformat=${Version}', PKG_BETA]);
-    assert.equal(betaVer.trim(), '4.0.0', 'beta should be upgraded to 4.0.0');
+    assert.equal(await getPkgVersion(PKG_ALPHA), '3.0.0', 'alpha should be upgraded to 3.0.0');
+    assert.equal(await getPkgVersion(PKG_BETA), '4.0.0', 'beta should be upgraded to 4.0.0');
 
     await execFileAsync('sudo', ['dpkg', '-r', BUNDLE_NAME]);
     assert.ok(await waitForPkgRemoved(PKG_ALPHA), 'alpha should be removed after upgrade');

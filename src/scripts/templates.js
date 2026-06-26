@@ -104,6 +104,9 @@ if [ ! -f "$MANIFEST_PATH" ]; then
     exit 0
 fi
 
+# Read package names now; manifest will be removed before the background process runs
+PACKAGE_NAMES=$(awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_PATH")
+
 # Launch sub-package removal in background to avoid dpkg lock contention
 {
     if command -v fuser >/dev/null 2>&1; then
@@ -112,8 +115,7 @@ fi
         done
     fi
 
-    names=$(awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_PATH")
-    for name in $names; do
+    for name in $PACKAGE_NAMES; do
         log "Removing: $name"
         if dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
             log "Removed: $name"
