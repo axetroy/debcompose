@@ -79,6 +79,14 @@ app.post("/api/bundles/generate", async (req, res) => {
       return res.status(500).json({ error: result.error });
     }
 
+    res.json({
+      message: "Bundle generated successfully",
+      bundleId: result.bundleId,
+      downloadUrl: `/api/bundles/${result.bundleId}`,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to generate bundle" });
+  } finally {
     // Cleanup only the uploaded files that were used in this bundle
     const uploadPromises = packages.map(
       (p) => fs.unlink(path.join("uploads", p.id)).catch(() => {}), // Ignore if file already deleted
@@ -92,14 +100,6 @@ app.post("/api/bundles/generate", async (req, res) => {
         await fs.unlink(path.join("dist", file));
       }
     }
-
-    res.json({
-      message: "Bundle generated successfully",
-      bundleId: result.bundleId,
-      downloadUrl: `/api/bundles/${result.bundleId}`,
-    });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to generate bundle" });
   }
 });
 
