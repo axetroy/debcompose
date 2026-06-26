@@ -70,9 +70,11 @@ debcompose <deb-dir> [options]    # shortcut
 | `--output` | `-o` | Output directory | current directory |
 | `--version` | `-v` | Bundle version | `1.0.0` |
 | `--name` | `-n` | Package name | auto-detected |
-| `--arch` | | Architecture | `amd64` |
+| `--arch` | | Target architecture (amd64, i386, arm64, armhf, etc.) | `amd64` |
 | `--maintainer` | | Maintainer field | `Unknown <unknown>` |
 | `--description` | | Description field | auto-generated |
+
+> **Note**: The control file format follows the [Debian Policy Manual](https://www.debian.org/doc/debian-policy/ch-controlfields.html).
 
 Example:
 

@@ -16,9 +16,10 @@ function showGlobalHelp() {
     '  -o, --output <dir>       Output directory (default: current directory)\n' +
     '  -v, --version <ver>      Bundle version (default: 1.0.0)\n' +
     '  -n, --name <name>        Package name (default: auto-detected)\n' +
-    '      --arch <arch>        Target architecture (default: amd64)\n' +
+    '      --arch <arch>        Target architecture (amd64, i386, arm64, armhf, etc.; default: amd64)\n' +
     '      --maintainer <str>   Maintainer field (default: "Unknown <unknown>")\n' +
     '      --description <str>  Description field (default: auto-generated)\n\n' +
+    'Control file format: https://www.debian.org/doc/debian-policy/ch-controlfields.html\n\n' +
     'Run \'debcompose build --help\' or \'debcompose --help\' for detailed options.\n');
 }
 
@@ -30,10 +31,11 @@ function showBuildHelp() {
     '  -o, --output <dir>       Output directory (default: current directory)\n' +
     '  -v, --version <ver>      Bundle version (default: 1.0.0)\n' +
     '  -n, --name <name>        Package name (default: auto-detected)\n' +
-    '      --arch <arch>        Target architecture (default: amd64)\n' +
+    '      --arch <arch>        Target architecture (amd64, i386, arm64, armhf, etc.; default: amd64)\n' +
     '      --maintainer <str>   Maintainer field (default: "Unknown <unknown>")\n' +
     '      --description <str>  Description field (default: auto-generated)\n' +
     '  -h, --help               Show this help message\n\n' +
+    'Control file format: https://www.debian.org/doc/debian-policy/ch-controlfields.html\n\n' +
     'Examples:\n' +
     '  debcompose build ./packages\n' +
     '  debcompose build ./packages --output ./dist --version 2.0.0 --name my-app\n' +
