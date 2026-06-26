@@ -79,11 +79,11 @@ describe('writePostrm', () => {
     assert.ok(content.includes('"purge"'));
   });
 
-  it('uses jq reverse for reverse-order removal', async () => {
+  it('removes packages in reverse order', async () => {
     await writePostrm(tmpDir, manifest);
 
     const content = await readFile(join(tmpDir, 'postrm'), 'utf-8');
-    assert.ok(content.includes('reverse'));
+    assert.ok(content.includes('i>0;i--'), 'should iterate in reverse');
   });
 
   it('includes bundle version', async () => {

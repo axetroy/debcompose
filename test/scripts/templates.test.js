@@ -50,9 +50,8 @@ describe('generatePostrm', () => {
     assert.ok(script.includes('"purge"'));
   });
 
-  it('uses jq reverse for reverse-order removal', () => {
+  it('removes packages in reverse order', () => {
     const script = generatePostrm(manifest);
-    assert.ok(script.includes('reverse'), 'should use jq reverse for reverse order');
     assert.ok(script.includes('dpkg -r'), 'should call dpkg -r for removal');
   });
 

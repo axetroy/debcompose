@@ -114,8 +114,6 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
   let bundlePath;
 
   before(async () => {
-    await execFileAsync('sudo', ['apt-get', 'install', '-y', 'jq']);
-
     tmpDir = join(tmpdir(), `debcompose-e2e-${Date.now()}`);
     debDir = join(tmpDir, 'packages');
     const outDir = join(tmpDir, 'dist');

@@ -54,7 +54,7 @@ while IFS= read -r file; do
         log "ERROR: Failed to install: $file"
         exit 1
     fi
-done < <(jq -r '.packages[].file' "$MANIFEST_PATH")
+done < <(awk -F'"' '/"file": "/ {print $4}' "$MANIFEST_PATH")
 
 log "Bundle v${version} installation completed"
 exit 0
@@ -94,7 +94,7 @@ if [ ! -f "$MANIFEST_PATH" ]; then
     exit 0
 fi
 
-names=$(jq -r '.packages | reverse | .[].name' "$MANIFEST_PATH")
+names=$(awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_PATH")
 for name in $names; do
     log "Removing: $name"
     if dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
