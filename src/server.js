@@ -52,6 +52,10 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB per file
+    files: 5, // max 5 files per session
+  },
   fileFilter: (req, file, cb) => {
     if (file.originalname.endsWith(".deb")) {
       cb(null, true);
@@ -86,18 +90,26 @@ app.post("/api/bundles/preview", async (req, res) => {
   }
 
   const previewPackages = [];
+  let hasMissingFiles = false;
   for (const pkg of order) {
     const pkgInfo = packages.find((p) => p.name === pkg);
     if (pkgInfo?.path) {
       const fullPath = path.join("uploads", effectiveSessionId, pkgInfo.id || pkgInfo.path);
       try {
         await fs.access(fullPath);
+        const stat = await fs.stat(fullPath);
         previewPackages.push({
           name: path.basename(pkgInfo.name || pkg, '.deb'),
           file: path.basename(fullPath),
+          size: stat.size,
         });
       } catch {
-        // skip
+        hasMissingFiles = true;
+        previewPackages.push({
+          name: path.basename(pkgInfo.name || pkg, '.deb'),
+          file: path.basename(fullPath),
+          error: 'file not found',
+        });
       }
     }
   }
@@ -131,6 +143,7 @@ app.post("/api/bundles/preview", async (req, res) => {
       section: config?.section || envConfig.section,
       priority: config?.priority || envConfig.priority,
     },
+    warning: hasMissingFiles ? 'Some uploaded files were not found on the server. Please re-upload.' : undefined,
   });
 });
 
