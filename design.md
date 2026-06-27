@@ -151,11 +151,12 @@ Bundle 仅负责组织与调度。
                  +-----------+-----------+
                              |
                   postinst/postrm
+                  (构建时根据 manifest 生成)
                              |
          +-------------------+-------------------+
          |                                       |
-     读取 manifest                         读取 /var/lib/<bundle-package-name>/packages
-     (/opt/<bundle-package-name>/manifest.json)            (持久化包列表, 由 postinst 保存)
+   按 manifest 顺序                    按 manifest 逆序
+   安装所有子包 (dpkg -i)              卸载所有子包 (dpkg -r)
          |                                       |
          v                                       v
   安装所有 Deb (async)                   卸载所有 Deb (async)
@@ -171,6 +172,9 @@ Bundle 本身不包含业务逻辑。
 仅作为安装调度器。
 
 由于 dpkg 在安装 Wrapper 期间持有锁，postinst 通过后台子进程（`{ ... } & exit 0`）执行子包安装，以避免子包 `dpkg -i` 时的死锁。卸载同理。
+
+postinst 与 postrm 中的 `dpkg -i` / `dpkg -r` 命令在**构建时**根据 manifest 直接生成并固化到脚本中，运行时无需读取任何持久化状态文件。
+manifest.json 仍随 Bundle 一并分发，仅作为可读的元数据参考与未来扩展（如 SHA256 校验）使用，不参与运行时调度。
 
 ---
 
@@ -241,16 +245,32 @@ Manifest 用于：
 安装：
 
 ```text
-读取 manifest
+构建时读取 manifest
 
 ↓
 
-依次安装所有 deb
+按顺序生成 dpkg -i 命令并固化到 postinst
+
+↓
+
+运行时 postinst 依次执行安装所有 deb
 ```
 
 卸载：
 
-从持久化包列表读取（参见第 6 章卸载流程），该列表由 postinst 安装时根据 manifest 生成。
+```text
+构建时读取 manifest
+
+↓
+
+按逆序生成 dpkg -r 命令并固化到 postrm
+
+↓
+
+运行时 postrm 依次执行卸载所有 deb
+```
+
+安装与卸载命令均在构建时根据 manifest 生成并固化到维护脚本中，运行时无需读取任何持久化状态文件（参见第 6 章生命周期）。
 
 Node Builder 自动生成 Manifest。
 
@@ -282,10 +302,7 @@ dpkg -i bundle.deb
     │
     ├─ 启动后台子进程 ({ ... } &)
     │
-    ├─ 读取 manifest (/opt/<bundle-package-name>/manifest.json)
-    │
-    ├─ 写入持久化包列表到 /var/lib/<bundle-package-name>/packages
-    │   （逆序，供卸载使用）
+    ├─ 执行构建时根据 manifest 生成的安装命令
     │
     ├─ 等待 dpkg 锁释放
     │
@@ -302,17 +319,16 @@ dpkg -i bundle.deb 返回
 
 ### 安装中途崩溃的状态恢复
 
-如果后台子进程在安装过程中崩溃（例如系统断电、进程被 kill），由于持久化包列表在安装**开始前**已写入，可能发生以下不一致：
+如果后台子进程在安装过程中崩溃（例如系统断电、进程被 kill），可能发生以下不一致：
 
-- 持久化文件包含所有子包
+- postinst 中包含所有子包的安装命令
 - 但实际只有部分子包被安装
 
 这种情况下的恢复方式：
 
 1. 用户执行 `dpkg -r <bundle-package-name>` 触发卸载
-2. postrm 读取 `packages.bak`（如果之前已将其重命名）或 `packages` 文件
-3. postrm 尝试卸载列表中的所有子包
-4. 对未安装的包，`dpkg -r` 会输出警告，但 postrm 不会因此失败（warn-only）
+2. postrm 执行构建时生成的逆序卸载命令，尝试卸载所有子包
+3. 对未安装的包，`dpkg -r` 会输出警告，但 postrm 不会因此失败（warn-only）
 
 这种设计下，系统最终能够恢复一致状态，代价是卸载过程中产生一些无害的警告。
 ```
@@ -353,7 +369,7 @@ dpkg -i bundle.deb 返回
 2. 以非零状态退出（exit 1）
 3. dpkg 将 wrapper package 标记为安装失败
 
-**恢复方法**：用户可手动执行 `dpkg -r <bundle-package-name>` 重试卸载，postrm 会从 `packages.bak` 文件中读取包列表，尝试再次卸载所有子包。
+**恢复方法**：用户可手动执行 `dpkg -r <bundle-package-name>` 重试卸载，postrm 会执行构建时生成的逆序卸载命令，再次尝试卸载所有子包。
 
 ---
 
@@ -374,16 +390,12 @@ dpkg -r bundle
     │
     ├─ 启动后台子进程 ({ ... } &)
     │
-    ├─ 读取持久化包列表 (/var/lib/<bundle-package-name>/packages)
-    │
-    ├─ 重命名持久化文件为 packages.bak（防止卸载中途崩溃时丢失状态）
-    │
     ├─ 等待 dpkg 锁释放
+    │
+    ├─ 执行构建时根据 manifest 逆序生成的卸载命令
     │
     ├─ 按逆序卸载所有包 (dpkg -r)
     │   └─ 每次卸载记录 ExitCode
-    │
-    ├─ 删除 packages.bak（卸载完成，清理临时文件）
     │
     └─ 卸载完成
 
@@ -600,16 +612,17 @@ Builder 通过 `onInstallError` 选项控制策略：
 
 便于售后分析。
 
-### 持久化包列表
+### 运行时状态
 
-安装时，postinst 将子包列表（逆序）写入：
+postinst 与 postrm 中的安装/卸载命令在构建时根据 manifest 直接生成并固化到脚本中，运行时不读取也不写入任何持久化状态文件。
 
-```text
-/var/lib/<bundle-package-name>/packages
-```
+这种设计带来以下特点：
 
-卸载时，postrm 将该文件重命名为 `packages.bak` 后读取，卸载完成后删除 `packages.bak`。
-若卸载中途崩溃，残留的 `.bak` 文件可在下次卸载时自动恢复并继续。
+* 无需维护 `/var/lib` 下的包列表文件，减少状态不一致的风险
+* 卸载时直接使用构建时固化的逆序卸载命令，无需依赖安装阶段写入的文件
+* 崩溃恢复依赖 postrm 的 warn-only 语义（对未安装的包输出警告但不失败），而非残留的状态文件
+
+manifest.json 仍随 Bundle 分发，作为可读元数据与未来扩展（如 SHA256 校验、条件安装）的载体，不参与运行时调度。
 
 ---
 
