@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import path from "node:path";
 import fs from "node:fs/promises";
+import crypto from "node:crypto";
 import { BundleBuilder } from "./services/BundleBuilder.js";
 import { ConsoleLogger } from "./logger/index.js";
 
@@ -26,8 +27,31 @@ const envConfig = {
   license: process.env.DEB_COMPOSE_LICENSE || "",
 };
 
+// Request logging middleware
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.url}`);
+  next();
+});
+
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const sessionId = req.body?.sessionId || 'default';
+    const dir = path.join('uploads', sessionId);
+    try {
+      await fs.mkdir(dir, { recursive: true });
+      cb(null, dir);
+    } catch (err) {
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = crypto.randomBytes(8).toString('hex') + '_' + file.originalname;
+    cb(null, uniqueName);
+  },
+});
+
 const upload = multer({
-  dest: "uploads/",
+  storage,
   fileFilter: (req, file, cb) => {
     if (file.originalname.endsWith(".deb")) {
       cb(null, true);
@@ -59,15 +83,14 @@ app.post("/api/packages/upload", upload.single("package"), async (req, res) => {
 });
 
 app.post("/api/bundles/generate", async (req, res) => {
-  const { packages, order, config } = req.body;
+  const { packages, order, config, sessionId } = req.body;
 
   if (!packages || !order) {
     logger.warn('Generate bundle failed: missing packages or order');
     return res.status(400).json({ error: "Missing packages or order" });
   }
 
-  const bundleId = `bundle_${Date.now()}`;
-  const crypto = await import('node:crypto');
+  const effectiveSessionId = sessionId || 'default';
   const buildId = crypto.randomBytes(8).toString('hex');
 
   const statusEntry = {
@@ -82,7 +105,7 @@ app.post("/api/bundles/generate", async (req, res) => {
   };
   buildStatuses.set(buildId, statusEntry);
 
-  logger.info(`Queued bundle generation: ${buildId} (${packages.length} packages)`);
+  logger.info(`Queued bundle generation: ${buildId} (${packages.length} packages, session: ${effectiveSessionId})`);
 
   // Start build asynchronously
   (async () => {
@@ -93,7 +116,7 @@ app.post("/api/bundles/generate", async (req, res) => {
       const result = await bundleBuilder.build({
         packages: packages.map((p) => ({
           name: p.name,
-          path: path.join("uploads", p.id),
+          path: path.join("uploads", effectiveSessionId, p.id),
         })),
         order,
         outputDir: "dist",
@@ -128,12 +151,14 @@ app.post("/api/bundles/generate", async (req, res) => {
       statusEntry.error = error.message || 'Unknown error';
       logger.error('Bundle generation error:', error);
     } finally {
-      // Cleanup uploaded files
-      logger.debug('Cleaning up uploaded files');
-      const uploadPromises = packages.map(
-        (p) => fs.unlink(path.join("uploads", p.id)).catch(() => {}),
-      );
-      await Promise.all(uploadPromises);
+      // Cleanup session upload directory recursively
+      const sessionDir = path.join("uploads", effectiveSessionId);
+      try {
+        await fs.rm(sessionDir, { recursive: true, force: true });
+        logger.debug(`Cleaned up session directory: ${sessionDir}`);
+      } catch (e) {
+        logger.warn(`Failed to clean up session directory: ${sessionDir}`, e.message);
+      }
     }
   })();
 

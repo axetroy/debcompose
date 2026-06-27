@@ -96,11 +96,22 @@ export class BundleBuilder {
 set -e
 
 LOG_FILE="/var/log/${cfg.name || "debcompose-bundle"}.log"
-BUNDLE_DIR="/opt/bundle"
+BUNDLE_DIR="${debDir}"
 MANIFEST_FILE="${debianDir}/manifest.json"
+INSTALLED_LIST=""
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+
+rollback() {
+    log "ERROR: Installation failed. Rolling back installed packages..."
+    for pkg in $(echo "$INSTALLED_LIST" | tac); do
+        log "Rolling back: $pkg"
+        dpkg -r "$pkg" >> "$LOG_FILE" 2>&1 || true
+    done
+    log "Rollback completed"
+    exit 1
 }
 
 log "Starting bundle installation: ${cfg.name || "debcompose-bundle"} version ${cfg.version || "1.0.0"}"
@@ -110,12 +121,18 @@ if [ ! -f "$MANIFEST_FILE" ]; then
     exit 1
 fi
 
+if ! command -v jq &> /dev/null; then
+    log "ERROR: jq is required but not installed"
+    exit 1
+fi
+
 PACKAGES=$(jq -r '.packages[].name' "$MANIFEST_FILE" 2>/dev/null)
 if [ -z "$PACKAGES" ]; then
     log "ERROR: No packages found in manifest"
     exit 1
 fi
 
+INSTALLED=""
 for pkg in $PACKAGES; do
     DEB_FILE=$(jq -r --arg name "$pkg" '.packages[] | select(.name == $name) | .file' "$MANIFEST_FILE")
     if [ -z "$DEB_FILE" ] || [ "$DEB_FILE" = "null" ]; then
@@ -126,15 +143,17 @@ for pkg in $PACKAGES; do
     DEB_PATH="$BUNDLE_DIR/$DEB_FILE"
     if [ ! -f "$DEB_PATH" ]; then
         log "ERROR: Deb file not found: $DEB_PATH"
-        exit 1
+        rollback
     fi
     
     log "Installing package: $pkg ($DEB_FILE)"
     if dpkg -i "$DEB_PATH" >> "$LOG_FILE" 2>&1; then
         log "Successfully installed: $pkg"
+        INSTALLED="$INSTALLED $pkg"
+        INSTALLED_LIST="$INSTALLED"
     else
         log "ERROR: Failed to install $pkg"
-        exit 1
+        rollback
     fi
 done
 
