@@ -370,14 +370,6 @@ app.get("/api/bundles/:id", async (req, res) => {
   }
 });
 
-// Multer error handling (fileFilter errors are captured here)
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    return res.status(400).json({ error: err.message });
-  }
-  next(err);
-});
-
 // Multer error handler (must be before global error handler)
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError || (err && err.message === 'Only .deb files are allowed')) {
