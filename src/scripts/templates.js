@@ -1,5 +1,20 @@
-const MANIFEST_PATH = '/opt/bundle/manifest.json';
-const DEB_DIR = '/opt/bundle';
+/**
+ * Build the manifest path from the bundle package name.
+ * @param {string} bundleName
+ * @returns {string}
+ */
+function manifestPath(bundleName) {
+  return `/opt/${escapeShellString(bundleName)}/manifest.json`;
+}
+
+/**
+ * Build the deb directory path from the bundle package name.
+ * @param {string} bundleName
+ * @returns {string}
+ */
+function debDirPath(bundleName) {
+  return `/opt/${escapeShellString(bundleName)}`;
+}
 
 /**
  * Build the log file path from the bundle package name.
@@ -35,7 +50,7 @@ function escapeShellString(str) {
 /**
  * Generate a postinst (post-installation) bash script.
  *
- * The script reads the manifest from /opt/bundle/manifest.json and
+ * The script reads the manifest from /opt/<bundleName>/manifest.json and
  * installs each sub-package in order using dpkg -i.
  * Package names are saved to a persistent file for postrm.
  *
@@ -51,6 +66,8 @@ export function generatePostinst(manifest, options = {}) {
   const { onInstallError = 'stop', bundleName = 'product-installer' } = options;
   const version = escapeShellString(manifest.version);
   const hasRollback = onInstallError === 'rollback';
+  const MANIFEST_PATH = manifestPath(bundleName);
+  const DEB_DIR = debDirPath(bundleName);
   const LOG_FILE = logFilePath(bundleName);
   const PACKAGE_LIST_FILE = packageListPath(bundleName);
 

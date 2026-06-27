@@ -43,14 +43,14 @@ describe('writePostinst', () => {
     await writePostinst(tmpDir, manifest);
 
     const content = await readFile(join(tmpDir, 'postinst'), 'utf-8');
-    assert.ok(content.includes('/opt/bundle/manifest.json'));
+    assert.ok(content.includes('/opt/product-installer/manifest.json'));
   });
 
   it('references deb directory', async () => {
     await writePostinst(tmpDir, manifest);
 
     const content = await readFile(join(tmpDir, 'postinst'), 'utf-8');
-    assert.ok(content.includes('/opt/bundle'));
+    assert.ok(content.includes('/opt/product-installer'));
   });
 
   it('writes rollback postinst with rollback function', async () => {

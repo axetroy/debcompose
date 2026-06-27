@@ -162,6 +162,8 @@ app.post("/api/bundles/preview", async (req, res) => {
     packages: previewPackages,
   };
 
+  const bundleDirName = config?.name || config?.package || envConfig.name || 'bundle';
+
   const structure = [
     { path: "DEBIAN/", type: "dir" },
     { path: "DEBIAN/control", type: "file", size: "auto-generated" },
@@ -169,9 +171,9 @@ app.post("/api/bundles/preview", async (req, res) => {
     { path: "DEBIAN/postrm", type: "file", size: "auto-generated" },
     { path: "DEBIAN/md5sums", type: "file", size: "auto-generated" },
     { path: "opt/", type: "dir" },
-    { path: "opt/bundle/", type: "dir" },
-    ...previewPackages.map(p => ({ path: `opt/bundle/${p.file}`, type: "file" })),
-    { path: "opt/bundle/manifest.json", type: "file", size: "auto-generated" },
+    { path: `opt/${bundleDirName}/`, type: "dir" },
+    ...previewPackages.map(p => ({ path: `opt/${bundleDirName}/${p.file}`, type: "file" })),
+    { path: `opt/${bundleDirName}/manifest.json`, type: "file", size: "auto-generated" },
   ];
 
   res.json({

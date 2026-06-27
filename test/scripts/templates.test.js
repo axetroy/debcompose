@@ -25,7 +25,7 @@ describe('generatePostinst', () => {
 
   it('references manifest path', () => {
     const script = generatePostinst(manifest);
-    assert.ok(script.includes('/opt/bundle/manifest.json'));
+    assert.ok(script.includes('/opt/product-installer/manifest.json'));
   });
 
   it('references bundle version', () => {

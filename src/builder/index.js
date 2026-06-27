@@ -63,14 +63,14 @@ export async function buildBundle(options) {
 
   const manifest = await generateManifest(debDir, version || '1.0.0', order);
 
+  const name = packageName || `${manifest.packages[0]?.name || 'bundle'}-installer`;
+
   const tmpDir = await mkdtemp(join(tmpdir(), 'debcompose-'));
 
   try {
-    const bundleDir = join(tmpDir, 'opt', 'bundle');
+    const bundleDir = join(tmpDir, 'opt', name);
     await mkdir(bundleDir, { recursive: true });
     await cp(debDir, bundleDir, { recursive: true });
-
-    const name = packageName || `${manifest.packages[0]?.name || 'bundle'}-installer`;
 
     const { outputPath } = await runBuildPipeline({
       buildDir: tmpDir,

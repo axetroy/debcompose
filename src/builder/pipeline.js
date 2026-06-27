@@ -8,7 +8,7 @@ import { calculateInstalledSize, generateMd5sums } from './utils.js';
 
 /**
  * @typedef {Object} PipelineOptions
- * @property {string} buildDir         - Root of the build directory (must contain opt/bundle/ with .deb files)
+ * @property {string} buildDir         - Root of the build directory
  * @property {import('../manifest/schema.js').Manifest} manifest
  * @property {Object} controlConfig    - Control file data
  * @property {string} controlConfig.package
@@ -25,7 +25,7 @@ import { calculateInstalledSize, generateMd5sums } from './utils.js';
 /**
  * Run the common build pipeline.
  *
- * 1. Write manifest.json to opt/bundle/
+ * 1. Write manifest.json to opt/<package-name>/
  * 2. Write DEBIAN/control, postinst, postrm
  * 3. Generate DEBIAN/md5sums
  * 4. Run dpkg-deb -b
@@ -34,14 +34,13 @@ import { calculateInstalledSize, generateMd5sums } from './utils.js';
  * @returns {Promise<{outputPath: string}>}
  */
 export async function runBuildPipeline({ buildDir, manifest, controlConfig, onInstallError }) {
+  const bundleName = controlConfig.package || 'product-installer';
   const debianDir = join(buildDir, 'DEBIAN');
-  const bundleDir = join(buildDir, 'opt', 'bundle');
+  const bundleDir = join(buildDir, 'opt', bundleName);
 
   await writeManifest(manifest, bundleDir);
 
   const installedSize = await calculateInstalledSize(bundleDir);
-
-  const bundleName = controlConfig.package || 'product-installer';
 
   await writeControl(debianDir, { ...controlConfig, installedSize });
   await writePostinst(debianDir, manifest, { onInstallError, bundleName });

@@ -175,13 +175,13 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
     assert.ok(bundlePath, 'bundle must have been built in before hook');
 
     const { stdout: contents } = await execFileAsync('dpkg-deb', ['--contents', bundlePath]);
-    assert.ok(contents.includes('opt/bundle/manifest.json'), 'bundle must contain manifest.json');
-    assert.ok(contents.includes('opt/bundle/deb-e2e-alpha.deb'), 'bundle must contain alpha.deb');
-    assert.ok(contents.includes('opt/bundle/deb-e2e-beta.deb'), 'bundle must contain beta.deb');
+    assert.ok(contents.includes('opt/deb-e2e-bundle/manifest.json'), 'bundle must contain manifest.json');
+    assert.ok(contents.includes('opt/deb-e2e-bundle/deb-e2e-alpha.deb'), 'bundle must contain alpha.deb');
+    assert.ok(contents.includes('opt/deb-e2e-bundle/deb-e2e-beta.deb'), 'bundle must contain beta.deb');
 
     const postinst = await extractPostinst(bundlePath);
     assert.ok(postinst, 'postinst must exist in bundle');
-    assert.ok(postinst.includes('/opt/bundle/manifest.json'), 'postinst must reference manifest path');
+    assert.ok(postinst.includes('/opt/deb-e2e-bundle/manifest.json'), 'postinst must reference manifest path');
   });
 
   it('bundle installs sub-packages', async () => {

@@ -154,8 +154,8 @@ Bundle 仅负责组织与调度。
                              |
          +-------------------+-------------------+
          |                                       |
-    读取 manifest                         读取 /var/lib/<bundle-package-name>/packages
-    (/opt/bundle/manifest.json)            (持久化包列表, 由 postinst 保存)
+     读取 manifest                         读取 /var/lib/<bundle-package-name>/packages
+     (/opt/<bundle-package-name>/manifest.json)            (持久化包列表, 由 postinst 保存)
          |                                       |
          v                                       v
   安装所有 Deb (async)                   卸载所有 Deb (async)
@@ -188,7 +188,7 @@ Bundle 本身不包含业务逻辑。
 │   └── md5sums
 │
 └── opt
-    └── bundle
+    └── <bundle-package-name>
         ├── manifest.json
         ├── runtime.deb
         ├── client.deb
@@ -204,7 +204,7 @@ DEBIAN 负责：
 * 安装脚本
 * 卸载脚本
 
-opt/bundle：
+opt/<bundle-package-name>：
 
 存放所有待安装 Deb。
 
@@ -282,7 +282,7 @@ dpkg -i bundle.deb
     │
     ├─ 启动后台子进程 ({ ... } &)
     │
-    ├─ 读取 manifest (/opt/bundle/manifest.json)
+    ├─ 读取 manifest (/opt/<bundle-package-name>/manifest.json)
     │
     ├─ 写入持久化包列表到 /var/lib/<bundle-package-name>/packages
     │   （逆序，供卸载使用）
@@ -786,9 +786,9 @@ Body:
     "structure": [
         {"path": "DEBIAN", "type": "dir"},
         {"path": "DEBIAN/control", "type": "file"},
-        {"path": "opt/bundle", "type": "dir"},
-        {"path": "opt/bundle/manifest.json", "type": "file"},
-        {"path": "opt/bundle/runtime.deb", "type": "file"}
+        {"path": "opt/<bundle-package-name>", "type": "dir"},
+        {"path": "opt/<bundle-package-name>/manifest.json", "type": "file"},
+        {"path": "opt/<bundle-package-name>/runtime.deb", "type": "file"}
     ]
 }
 ```

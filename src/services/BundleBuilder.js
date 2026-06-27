@@ -46,10 +46,10 @@ export class BundleBuilder {
     const tmpDir = await fs.mkdtemp(path.join(tmpdir(), 'debcompose-server-'));
 
     try {
-      const debDir = path.join(tmpDir, 'opt', 'bundle');
+      const bundleName = cfg.package || cfg.name || 'debcompose-bundle';
+      const debDir = path.join(tmpDir, 'opt', bundleName);
       await fs.mkdir(debDir, { recursive: true });
 
-      const bundleName = cfg.package || cfg.name || 'debcompose-bundle';
       const manifestPackages = [];
 
       for (const pkg of order) {

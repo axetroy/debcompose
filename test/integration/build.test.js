@@ -112,9 +112,9 @@ describe('build integration', { skip: hasDpkg ? false : 'dpkg-deb not available'
     });
 
     const { stdout } = await execFileAsync('dpkg-deb', ['--contents', result.outputPath]);
-    assert.ok(stdout.includes('opt/bundle/manifest.json'));
-    assert.ok(stdout.includes('opt/bundle/test-runtime.deb'));
-    assert.ok(stdout.includes('opt/bundle/test-server.deb'));
+    assert.ok(stdout.includes('opt/my-product-installer/manifest.json'));
+    assert.ok(stdout.includes('opt/my-product-installer/test-runtime.deb'));
+    assert.ok(stdout.includes('opt/my-product-installer/test-server.deb'));
   });
 
   it('output .deb contains DEBIAN/postinst and DEBIAN/postrm', async () => {
