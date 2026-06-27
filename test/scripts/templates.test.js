@@ -25,7 +25,7 @@ describe('generatePostinst', () => {
 
   it('references manifest path', () => {
     const script = generatePostinst(manifest);
-    assert.ok(script.includes('/opt/product-installer/manifest.json'));
+    assert.ok(script.includes('/opt/product-installer/'));
   });
 
   it('references bundle version', () => {
@@ -48,13 +48,12 @@ describe('generatePostinst', () => {
   it('defaults to product-installer paths', () => {
     const script = generatePostinst(manifest);
     assert.ok(script.includes('/var/log/product-installer.log'));
-    assert.ok(script.includes('/var/lib/product-installer/packages'));
+    assert.ok(script.includes('/opt/product-installer/'));
   });
 
-  it('uses bundleName for log and package list paths', () => {
+  it('uses bundleName for log path', () => {
     const script = generatePostinst(manifest, { bundleName: CUSTOM_NAME });
     assert.ok(script.includes(`/var/log/${CUSTOM_NAME}.log`));
-    assert.ok(script.includes(`/var/lib/${CUSTOM_NAME}/packages`));
   });
 
   describe('onInstallError strategy', () => {
@@ -90,7 +89,8 @@ describe('generatePostinst', () => {
 
     it('"rollback" tracks successfully installed packages', () => {
       const script = generatePostinst(manifest, { onInstallError: 'rollback' });
-      assert.ok(script.includes('INSTALLED="$INSTALLED $pkg_name"'));
+      assert.ok(script.includes('INSTALLED="$INSTALLED runtime"'));
+      assert.ok(script.includes('INSTALLED="$INSTALLED server"'));
     });
   });
 });
@@ -132,29 +132,10 @@ describe('generatePostrm', () => {
   it('defaults to product-installer paths for postrm', () => {
     const script = generatePostrm(manifest);
     assert.ok(script.includes('/var/log/product-installer.log'));
-    assert.ok(script.includes('/var/lib/product-installer/packages'));
   });
 
-  it('uses bundleName for postrm log and package list paths', () => {
+  it('uses bundleName for postrm log path', () => {
     const script = generatePostrm(manifest, { bundleName: CUSTOM_NAME });
     assert.ok(script.includes(`/var/log/${CUSTOM_NAME}.log`));
-    assert.ok(script.includes(`/var/lib/${CUSTOM_NAME}/packages`));
-  });
-
-  it('renames packages file to .bak before removal', () => {
-    const script = generatePostrm(manifest);
-    assert.ok(script.includes('.bak'));
-    assert.ok(script.includes('mv "$PACKAGE_LIST_FILE" "${PACKAGE_LIST_FILE}.bak"'));
-  });
-
-  it('cleans up .bak file after successful uninstall', () => {
-    const script = generatePostrm(manifest);
-    assert.ok(script.includes('rm -f "${PACKAGE_LIST_FILE}.bak"'));
-  });
-
-  it('falls back to .bak file when packages file is missing', () => {
-    const script = generatePostrm(manifest);
-    assert.ok(script.includes('.bak'), 'should reference .bak fallback');
-    assert.ok(script.includes('recovery file'), 'should mention recovery in log');
   });
 });

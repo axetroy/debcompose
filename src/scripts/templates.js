@@ -1,13 +1,4 @@
 /**
- * Build the manifest path from the bundle package name.
- * @param {string} bundleName
- * @returns {string}
- */
-function manifestPath(bundleName) {
-  return `/opt/${escapeShellString(bundleName)}/manifest.json`;
-}
-
-/**
  * Build the deb directory path from the bundle package name.
  * @param {string} bundleName
  * @returns {string}
@@ -26,15 +17,6 @@ function logFilePath(bundleName) {
 }
 
 /**
- * Build the persistent package list path from the bundle package name.
- * @param {string} bundleName
- * @returns {string}
- */
-function packageListPath(bundleName) {
-  return `/var/lib/${escapeShellString(bundleName)}/packages`;
-}
-
-/**
  * Escape a string for safe interpolation in single-quoted shell contexts.
  * @param {string} str
  * @returns {string}
@@ -50,34 +32,55 @@ function escapeShellString(str) {
 /**
  * Generate a postinst (post-installation) bash script.
  *
- * The script reads the manifest from /opt/<bundleName>/manifest.json and
- * installs each sub-package in order using dpkg -i.
- * Package names are saved to a persistent file for postrm.
+ * Sub-package dpkg -i commands are generated at build time from the manifest,
+ * eliminating the need for runtime manifest parsing (awk), retry loops, or
+ * lock-contention detection.
  *
- * When onInstallError is "rollback", the script uninstalls all
- * successfully installed packages in reverse order if any
- * single package fails, then exits with error.
+ * Runs the install operations in a background process to avoid dpkg lock
+ * contention with the parent dpkg invocation.
  *
  * @param {import('../manifest/schema.js').Manifest} manifest
- * @param {{ onInstallError?: OnInstallErrorStrategy }} [options]
+ * @param {{ onInstallError?: OnInstallErrorStrategy, bundleName?: string }} [options]
  * @returns {string} Bash script content
  */
 export function generatePostinst(manifest, options = {}) {
   const { onInstallError = 'stop', bundleName = 'product-installer' } = options;
   const version = escapeShellString(manifest.version);
   const hasRollback = onInstallError === 'rollback';
-  const MANIFEST_PATH = manifestPath(bundleName);
   const DEB_DIR = debDirPath(bundleName);
   const LOG_FILE = logFilePath(bundleName);
-  const PACKAGE_LIST_FILE = packageListPath(bundleName);
+
+  const installBody = manifest.packages.map(pkg => {
+    const file = escapeShellString(pkg.file);
+    const name = escapeShellString(pkg.name);
+    const pkgPath = `${DEB_DIR}/${file}`;
+
+    if (hasRollback) {
+      return `    if dpkg -i "${pkgPath}" >> "$LOG_FILE" 2>&1; then
+        log "ExitCode=0 Installed: ${file}"
+        INSTALLED="$INSTALLED ${name}"
+    else
+        exit_code=$?
+        log "ExitCode=$exit_code ERROR: Failed to install: ${file}"
+        rollback
+        exit 1
+    fi`;
+    }
+
+    return `    if dpkg -i "${pkgPath}" >> "$LOG_FILE" 2>&1; then
+        log "ExitCode=0 Installed: ${file}"
+    else
+        exit_code=$?
+        log "ExitCode=$exit_code ERROR: Failed to install: ${file}"
+        exit 1
+    fi`;
+  }).join('\n\n');
 
   return `#!/bin/bash
 set -e
 
-MANIFEST_PATH="${MANIFEST_PATH}"
 DEB_DIR="${DEB_DIR}"
-LOG_FILE="${LOG_FILE}"
-PACKAGE_LIST_FILE="${PACKAGE_LIST_FILE}"${hasRollback ? `
+LOG_FILE="${LOG_FILE}"${hasRollback ? `
 INSTALLED=""` : ''}
 
 log() {
@@ -100,60 +103,16 @@ else
     log "Bundle v${version} fresh installation started"
 fi
 
-if [ ! -f "$MANIFEST_PATH" ]; then
-    log "ERROR: Manifest not found at $MANIFEST_PATH"
-    exit 1
-fi
-
-# Save reverse-ordered package names for postrm (survives dpkg -r file removal)
-mkdir -p "$(dirname "$PACKAGE_LIST_FILE")"
-awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_PATH" > "$PACKAGE_LIST_FILE"
-
-# Launch sub-package installation in background to avoid dpkg lock contention.
-# trap + /dev/null + disown = survive sudo session cleanup (SIGHUP from closed PTY).
+# Launches sub-package installation in a background process to avoid dpkg
+# lock contention with the parent dpkg invocation.
+# trap + < /dev/null = survive sudo session cleanup (SIGHUP from closed PTY).
 {
     trap '' HUP
-    log "DEBUG: BG install started (PID=$$ PPID=$PPID)"
 
-    # Debug: verify manifest and DEB_DIR
-    log "DEBUG: DEB_DIR=$DEB_DIR"
-    ls -la "$DEB_DIR/" >> "$LOG_FILE" 2>&1 || true
-    log "DEBUG: MANIFEST_PATH=$MANIFEST_PATH ($(wc -c < "$MANIFEST_PATH" 2>&1) bytes)"
-    head -c 500 "$MANIFEST_PATH" >> "$LOG_FILE" 2>&1
-
-    log "DEBUG: Manifest packages:"
-    awk -F'"' 'BEGIN{ORS=""} /"name": "/{n=$4} /"file": "/{print "  " n "|" $4 "\n"}' "$MANIFEST_PATH" >> "$LOG_FILE"
-
-    while IFS='|' read -r pkg_name pkg_file; do
-        pkg_path="$DEB_DIR/$pkg_file"
-        if [ ! -f "$pkg_path" ]; then
-            log "ERROR: Package file not found: $pkg_path"${hasRollback ? `
-            rollback` : ''}
-            exit 1
-        fi
-        RETRY=0 MAX_RETRY=5
-        while [ $RETRY -lt $MAX_RETRY ]; do
-            log "Installing: $pkg_file (attempt $((RETRY + 1)))"
-            if timeout 10 dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
-                log "ExitCode=0 Installed: $pkg_file"${hasRollback ? `
-                INSTALLED="$INSTALLED $pkg_name"` : ''}
-                break
-            fi
-            exit_code=$?; RETRY=$((RETRY + 1))
-            if [ $RETRY -lt $MAX_RETRY ]; then
-                log "DEBUG: Retry $RETRY after exit code $exit_code for $pkg_file"
-                sleep 2
-            fi
-        done
-        if [ $RETRY -ge $MAX_RETRY ]; then
-            log "ExitCode=$exit_code ERROR: Failed to install after $MAX_RETRY retries: $pkg_file"${hasRollback ? `
-            rollback` : ''}
-            exit 1
-        fi
-    done < <(awk -F'"' 'BEGIN{ORS=""} /"name": "/{n=$4} /"file": "/{print n "|" $4 "\n"}' "$MANIFEST_PATH")
+${installBody}
 
     log "Bundle v${version} installation completed"
-} < /dev/null & disown
+} < /dev/null &
 
 exit 0
 `;
@@ -162,18 +121,31 @@ exit 0
 /**
  * Generate a postrm (post-removal) bash script.
  *
- * The script reads the persistent package list (saved by postinst) and
- * removes each sub-package in reverse order using dpkg -r.
+ * Sub-package dpkg -r commands are generated at build time from the manifest
+ * (in reverse order), eliminating the need for runtime file-reading, retry
+ * loops, or crash-recovery file mechanics.
+ *
  * Only runs on "remove" or "purge".
  *
  * @param {import('../manifest/schema.js').Manifest} manifest
+ * @param {{ bundleName?: string }} [options]
  * @returns {string} Bash script content
  */
 export function generatePostrm(manifest, options = {}) {
   const { bundleName = 'product-installer' } = options;
   const version = escapeShellString(manifest.version);
   const LOG_FILE = logFilePath(bundleName);
-  const PACKAGE_LIST_FILE = packageListPath(bundleName);
+
+  const removeBody = [...manifest.packages].reverse().map(pkg => {
+    const name = escapeShellString(pkg.name);
+
+    return `    if dpkg -r "${name}" >> "$LOG_FILE" 2>&1; then
+        log "ExitCode=0 Removed: ${name}"
+    else
+        exit_code=$?
+        log "ExitCode=$exit_code WARN: Failed to remove: ${name} (may not be installed)"
+    fi`;
+  }).join('\n\n');
 
   return `#!/bin/bash
 set -e
@@ -183,7 +155,6 @@ if [ "$1" != "remove" ] && [ "$1" != "purge" ]; then
 fi
 
 LOG_FILE="${LOG_FILE}"
-PACKAGE_LIST_FILE="${PACKAGE_LIST_FILE}"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
@@ -191,45 +162,16 @@ log() {
 
 log "Bundle v${version} removal started"
 
-if [ ! -f "$PACKAGE_LIST_FILE" ]; then
-    # Fallback: if uninstall previously crashed after renaming to .bak, use the .bak file directly
-    if [ ! -f "\${PACKAGE_LIST_FILE}.bak" ]; then
-        log "WARN: Package list not found at $PACKAGE_LIST_FILE, skipping sub-package removal"
-        exit 0
-    fi
-    log "WARN: Using recovery file \${PACKAGE_LIST_FILE}.bak (previous uninstall may have crashed)"
-else
-    # Normal case: rename to .bak to survive mid-uninstall crash
-    mv "$PACKAGE_LIST_FILE" "\${PACKAGE_LIST_FILE}.bak"
-fi
-
-PACKAGE_NAMES=$(cat "\${PACKAGE_LIST_FILE}.bak")
-rm -f "$PACKAGE_LIST_FILE"
-
-# Launch sub-package removal in background to avoid dpkg lock contention
+# Launches sub-package removal in a background process to avoid dpkg lock
+# contention with the parent dpkg invocation.
+# trap + < /dev/null = survive sudo session cleanup (SIGHUP from closed PTY).
 {
     trap '' HUP
-    for name in $PACKAGE_NAMES; do
-        RETRY=0 MAX_RETRY=5
-        while [ $RETRY -lt $MAX_RETRY ]; do
-            log "Removing: $name (attempt $((RETRY + 1)))"
-            if timeout 10 dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
-                log "ExitCode=0 Removed: $name"
-                break
-            fi
-            exit_code=$?; RETRY=$((RETRY + 1))
-            [ $RETRY -lt $MAX_RETRY ] && sleep 2
-        done
-        if [ $RETRY -ge $MAX_RETRY ]; then
-            log "ExitCode=$exit_code WARN: Failed to remove after $MAX_RETRY retries: $name (may not be installed)"
-        fi
-    done
 
-    # Clean up .bak file after successful uninstall
-    rm -f "\${PACKAGE_LIST_FILE}.bak"
+${removeBody}
 
     log "Bundle v${version} removal completed"
-} < /dev/null & disown
+} < /dev/null &
 
 exit 0
 `;

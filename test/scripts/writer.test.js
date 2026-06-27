@@ -43,7 +43,7 @@ describe('writePostinst', () => {
     await writePostinst(tmpDir, manifest);
 
     const content = await readFile(join(tmpDir, 'postinst'), 'utf-8');
-    assert.ok(content.includes('/opt/product-installer/manifest.json'));
+    assert.ok(content.includes('/opt/product-installer/'));
   });
 
   it('references deb directory', async () => {
@@ -66,7 +66,7 @@ describe('writePostinst', () => {
 
     const content = await readFile(join(tmpDir, 'postinst'), 'utf-8');
     assert.ok(content.includes('/var/log/my-custom-app.log'));
-    assert.ok(content.includes('/var/lib/my-custom-app/packages'));
+    assert.ok(content.includes('/opt/my-custom-app/'));
   });
 });
 
@@ -97,11 +97,10 @@ describe('writePostrm', () => {
     assert.ok(content.includes('\"purge\"'));
   });
 
-  it('removes packages from persistent list', async () => {
+  it('removes packages with dpkg -r', async () => {
     await writePostrm(tmpDir, manifest);
 
     const content = await readFile(join(tmpDir, 'postrm'), 'utf-8');
-    assert.ok(content.includes('PACKAGE_NAMES'), 'should read package list');
     assert.ok(content.includes('dpkg -r'), 'should call dpkg -r for removal');
   });
 
@@ -117,7 +116,6 @@ describe('writePostrm', () => {
 
     const content = await readFile(join(tmpDir, 'postrm'), 'utf-8');
     assert.ok(content.includes('/var/log/my-custom-app.log'));
-    assert.ok(content.includes('/var/lib/my-custom-app/packages'));
   });
 });
 
