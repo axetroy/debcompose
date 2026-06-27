@@ -61,11 +61,9 @@ describe('generatePostinst', () => {
     assert.ok(script.includes('disown'), 'postinst should use disown to detach');
   });
 
-  it('waits for dpkg lock before installing sub-packages', () => {
+  it('waits briefly before installing sub-packages', () => {
     const script = generatePostinst(manifest);
-    assert.ok(script.includes('lock-frontend'), 'postinst should check for dpkg frontend lock');
-    assert.ok(script.includes('/var/lib/dpkg/lock'), 'postinst should check for dpkg lock');
-    assert.ok(script.includes('sleep 2'), 'postinst should sleep between lock checks');
+    assert.ok(script.includes('sleep 3'), 'postinst should wait briefly before installing sub-packages');
   });
 
   it('creates log directory before writing', () => {
@@ -161,9 +159,8 @@ describe('generatePostrm', () => {
     assert.ok(script.includes('disown'), 'postrm should use disown to detach');
   });
 
-  it('waits for dpkg lock before removing sub-packages', () => {
+  it('waits briefly before removing sub-packages', () => {
     const script = generatePostrm(manifest);
-    assert.ok(script.includes('lock-frontend'), 'postrm should check for dpkg frontend lock');
-    assert.ok(script.includes('/var/lib/dpkg/lock'), 'postrm should check for dpkg lock');
+    assert.ok(script.includes('sleep 3'), 'postrm should wait briefly before removing sub-packages');
   });
 });

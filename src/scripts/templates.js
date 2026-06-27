@@ -115,11 +115,9 @@ mkdir -p "$(dirname "$LOG_FILE")"
 # Uses disown to fully detach from the parent shell so the process
 # survives the exit of dpkg maintainer script execution.
 {
-    # Wait for parent dpkg to release the lock before proceeding
-    # This avoids "dpkg: error: dpkg frontend lock is held by another process"
-    while [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/dpkg/lock ]; do
-        sleep 2
-    done
+    # Wait briefly for the parent dpkg process to fully release the lock
+    # before attempting sub-package installation.
+    sleep 3
 
 ${installBody}
 
@@ -187,10 +185,8 @@ trap '' HUP
 # Uses disown to fully detach from the parent shell so the process
 # survives the exit of dpkg maintainer script execution.
 {
-    # Wait for parent dpkg to release the lock before proceeding
-    while [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/dpkg/lock ]; do
-        sleep 2
-    done
+    # Wait briefly for the parent dpkg process to fully release the lock
+    sleep 3
 
 ${removeBody}
 
