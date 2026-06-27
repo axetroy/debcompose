@@ -148,23 +148,25 @@ describe('createManifest', () => {
   });
 
   it('throws DebComposeError with INVALID_INPUT code', () => {
-    try {
-      createManifest('', []);
-      assert.fail('Should have thrown');
-    } catch (err) {
-      assert.ok(err instanceof DebComposeError);
-      assert.equal(err.code, 'INVALID_INPUT');
-    }
+    assert.throws(
+      () => createManifest('', []),
+      (err) => {
+        assert.ok(err instanceof DebComposeError);
+        assert.equal(err.code, 'INVALID_INPUT');
+        return true;
+      }
+    );
   });
 
   it('throws with errors array in details', () => {
-    try {
-      createManifest('', []);
-      assert.fail('Should have thrown');
-    } catch (err) {
-      assert.ok(err instanceof DebComposeError);
-      assert.ok(Array.isArray(err.details.errors));
-    }
+    assert.throws(
+      () => createManifest('', []),
+      (err) => {
+        assert.ok(err instanceof DebComposeError);
+        assert.ok(Array.isArray(err.details.errors));
+        return true;
+      }
+    );
   });
 
   it('creates manifest with empty packages array', () => {
