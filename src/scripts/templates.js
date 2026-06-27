@@ -111,6 +111,10 @@ awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_
 
 # Launch sub-package installation in background to avoid dpkg lock contention
 {
+    # Debug: log the awk output to verify manifest parsing
+    log "DEBUG: Packages to install:"
+    awk -F'"' 'BEGIN{ORS=""} /"name": "/{n=$4} /"file": "/{print "DEBUG:   " n "|" $4 "\n"}' "$MANIFEST_PATH" >> "$LOG_FILE"
+
     while IFS='|' read -r pkg_name pkg_file; do
         pkg_path="$DEB_DIR/$pkg_file"
         if [ ! -f "$pkg_path" ]; then
@@ -118,16 +122,19 @@ awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_
             rollback` : ''}
             exit 1
         fi
-        log "Installing: $pkg_file"
-        RETRY=0 MAX_RETRY=15
+        RETRY=0 MAX_RETRY=5
         while [ $RETRY -lt $MAX_RETRY ]; do
-            if dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
+            log "Installing: $pkg_file (attempt $((RETRY + 1)))"
+            if timeout 10 dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
                 log "ExitCode=0 Installed: $pkg_file"${hasRollback ? `
                 INSTALLED="$INSTALLED $pkg_name"` : ''}
                 break
             fi
             exit_code=$?; RETRY=$((RETRY + 1))
-            [ $RETRY -lt $MAX_RETRY ] && sleep 2
+            if [ $RETRY -lt $MAX_RETRY ]; then
+                log "DEBUG: Retry $RETRY after exit code $exit_code for $pkg_file"
+                sleep 2
+            fi
         done
         if [ $RETRY -ge $MAX_RETRY ]; then
             log "ExitCode=$exit_code ERROR: Failed to install after $MAX_RETRY retries: $pkg_file"${hasRollback ? `
@@ -193,10 +200,10 @@ rm -f "$PACKAGE_LIST_FILE"
 # Launch sub-package removal in background to avoid dpkg lock contention
 {
     for name in $PACKAGE_NAMES; do
-        log "Removing: $name"
-        RETRY=0 MAX_RETRY=10
+        RETRY=0 MAX_RETRY=5
         while [ $RETRY -lt $MAX_RETRY ]; do
-            if dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
+            log "Removing: $name (attempt $((RETRY + 1)))"
+            if timeout 10 dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
                 log "ExitCode=0 Removed: $name"
                 break
             fi
