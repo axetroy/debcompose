@@ -96,7 +96,7 @@ const upload = multer({
   fileFilter,
 });
 
-// Multer error handler
+// Multer and file filter error handler
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError || (err && err.message === 'Only .deb files are allowed')) {
     return res.status(400).json({ error: err.message });
@@ -368,22 +368,6 @@ app.get("/api/bundles/:id", async (req, res) => {
   } catch {
     res.status(404).json({ error: "Bundle not found" });
   }
-});
-
-// Multer error handling (fileFilter errors are captured here)
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    return res.status(400).json({ error: err.message });
-  }
-  next(err);
-});
-
-// Multer error handler (must be before global error handler)
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError || (err && err.message === 'Only .deb files are allowed')) {
-    return res.status(400).json({ error: err.message });
-  }
-  next(err);
 });
 
 // Global error handling middleware

@@ -43,13 +43,15 @@ function showBuildHelp() {
     '      --section <str>      Package section (default: misc)\n' +
     '      --priority <str>     Package priority (optional, required, etc.; default: optional)\n' +
     '      --license <str>      License identifier (optional)\n' +
+    '      --on-install-error   Error recovery strategy: stop or rollback (default: stop)\n' +
     '  -h, --help               Show this help message\n\n' +
     'Control file format: https://www.debian.org/doc/debian-policy/ch-controlfields.html\n\n' +
     'Examples:\n' +
     '  debcompose build ./packages\n' +
     '  debcompose build ./packages --output ./dist --version 2.0.0 --name my-app\n' +
     '  debcompose ./packages -o ./dist -v 1.2.0 -n my-product\n' +
-    '  debcompose build ./packages --arch arm64 --section utils --priority optional\n');
+    '  debcompose build ./packages --arch arm64 --section utils --priority optional\n' +
+    '  debcompose build ./packages --on-install-error rollback\n');
 }
 
 function parseArgs(args) {
@@ -64,6 +66,7 @@ function parseArgs(args) {
     section: process.env.DEB_COMPOSE_SECTION || 'misc',
     priority: process.env.DEB_COMPOSE_PRIORITY || 'optional',
     license: process.env.DEB_COMPOSE_LICENSE || '',
+    onInstallError: process.env.DEB_COMPOSE_ON_INSTALL_ERROR || 'stop',
   };
 
   let i = 0;
@@ -93,6 +96,11 @@ function parseArgs(args) {
       options.priority = args[++i];
     } else if (arg === '--license') {
       options.license = args[++i];
+    } else if (arg === '--on-install-error') {
+      const strategy = args[++i];
+      if (strategy === 'stop' || strategy === 'rollback') {
+        options.onInstallError = strategy;
+      }
     } else if (!arg.startsWith('-') && !options.dir) {
       options.dir = arg;
     }
@@ -138,6 +146,7 @@ export async function runBuildCommand() {
       section: options.section,
       priority: options.priority,
       license: options.license,
+      onInstallError: options.onInstallError,
     });
     
     logger.info(`Bundle created: ${result.outputPath}`);

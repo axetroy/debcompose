@@ -85,7 +85,7 @@ export async function buildBundle(options) {
         priority: priority || 'optional',
         license: license || undefined,
       },
-      onInstallError,
+      onInstallError: onInstallError || 'stop',
     });
 
     // Move the output to the requested output directory

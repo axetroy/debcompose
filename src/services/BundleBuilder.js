@@ -51,13 +51,20 @@ export class BundleBuilder {
       await fs.mkdir(debDir, { recursive: true });
 
       const manifestPackages = [];
+      const skippedPackages = [];
 
       for (const pkg of order) {
         const pkgInfo = packages.find((p) => p.name === pkg);
-        if (!pkgInfo?.path) continue;
+        if (!pkgInfo?.path) {
+          skippedPackages.push({ name: pkg, reason: 'missing path' });
+          continue;
+        }
 
         const exists = await this._exists(pkgInfo.path);
-        if (!exists) continue;
+        if (!exists) {
+          skippedPackages.push({ name: pkg, reason: 'file not found' });
+          continue;
+        }
 
         const destName = path.basename(pkgInfo.path);
         await fs.copyFile(pkgInfo.path, path.join(debDir, destName));
@@ -72,6 +79,14 @@ export class BundleBuilder {
 
       if (manifestPackages.length === 0) {
         return { success: false, error: 'No valid .deb files found to bundle' };
+      }
+
+      if (skippedPackages.length > 0) {
+        const skippedNames = skippedPackages.map((p) => p.name).join(', ');
+        return {
+          success: false,
+          error: `Some packages could not be processed: ${skippedNames}. Please re-upload and try again.`,
+        };
       }
 
       const manifest = {
