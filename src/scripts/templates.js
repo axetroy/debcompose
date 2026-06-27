@@ -107,13 +107,25 @@ fi
 # disposition is inherited by the child (survives main shell exit).
 trap '' HUP
 
+# Always create log directory in case it doesn't exist
+mkdir -p "$(dirname "$LOG_FILE")"
+
 # Launches sub-package installation in a background process to avoid dpkg
 # lock contention with the parent dpkg invocation.
+# Uses disown to fully detach from the parent shell so the process
+# survives the exit of dpkg maintainer script execution.
 {
+    # Wait for parent dpkg to release the lock before proceeding
+    # This avoids "dpkg: error: dpkg frontend lock is held by another process"
+    while [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/dpkg/lock ]; do
+        sleep 2
+    done
+
 ${installBody}
 
     log "Bundle v${version} installation completed"
 } < /dev/null &
+disown
 
 exit 0
 `;
@@ -163,17 +175,28 @@ log() {
 
 log "Bundle v${version} removal started"
 
+# Always create log directory in case it doesn't exist
+mkdir -p "$(dirname "$LOG_FILE")"
+
 # Ignore SIGHUP before launching background process so the ignored
 # disposition is inherited by the child (survives main shell exit).
 trap '' HUP
 
 # Launches sub-package removal in a background process to avoid dpkg lock
 # contention with the parent dpkg invocation.
+# Uses disown to fully detach from the parent shell so the process
+# survives the exit of dpkg maintainer script execution.
 {
+    # Wait for parent dpkg to release the lock before proceeding
+    while [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/dpkg/lock ]; do
+        sleep 2
+    done
+
 ${removeBody}
 
     log "Bundle v${version} removal completed"
 } < /dev/null &
+disown
 
 exit 0
 `;

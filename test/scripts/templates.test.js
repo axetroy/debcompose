@@ -56,6 +56,23 @@ describe('generatePostinst', () => {
     assert.ok(script.includes(`/var/log/${CUSTOM_NAME}.log`));
   });
 
+  it('uses disown to detach background process', () => {
+    const script = generatePostinst(manifest);
+    assert.ok(script.includes('disown'), 'postinst should use disown to detach');
+  });
+
+  it('waits for dpkg lock before installing sub-packages', () => {
+    const script = generatePostinst(manifest);
+    assert.ok(script.includes('lock-frontend'), 'postinst should check for dpkg frontend lock');
+    assert.ok(script.includes('/var/lib/dpkg/lock'), 'postinst should check for dpkg lock');
+    assert.ok(script.includes('sleep 2'), 'postinst should sleep between lock checks');
+  });
+
+  it('creates log directory before writing', () => {
+    const script = generatePostinst(manifest);
+    assert.ok(script.includes('mkdir -p "$(dirname "$LOG_FILE")"'), 'postinst should create log directory');
+  });
+
   describe('onInstallError strategy', () => {
     it('default (stop) does not include rollback function', () => {
       const script = generatePostinst(manifest);
@@ -137,5 +154,16 @@ describe('generatePostrm', () => {
   it('uses bundleName for postrm log path', () => {
     const script = generatePostrm(manifest, { bundleName: CUSTOM_NAME });
     assert.ok(script.includes(`/var/log/${CUSTOM_NAME}.log`));
+  });
+
+  it('uses disown to detach background process in postrm', () => {
+    const script = generatePostrm(manifest);
+    assert.ok(script.includes('disown'), 'postrm should use disown to detach');
+  });
+
+  it('waits for dpkg lock before removing sub-packages', () => {
+    const script = generatePostrm(manifest);
+    assert.ok(script.includes('lock-frontend'), 'postrm should check for dpkg frontend lock');
+    assert.ok(script.includes('/var/lib/dpkg/lock'), 'postrm should check for dpkg lock');
   });
 });
