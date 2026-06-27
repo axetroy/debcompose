@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeControl } from '../control/index.js';
 import { writePostinst, writePostrm } from '../scripts/index.js';
@@ -37,6 +37,9 @@ export async function runBuildPipeline({ buildDir, manifest, controlConfig, onIn
   const bundleName = controlConfig.package || 'product-installer';
   const debianDir = join(buildDir, 'DEBIAN');
   const bundleDir = join(buildDir, 'opt', bundleName);
+
+  await mkdir(debianDir, { recursive: true });
+  await mkdir(bundleDir, { recursive: true });
 
   await writeManifest(manifest, bundleDir);
 
