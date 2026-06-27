@@ -103,12 +103,13 @@ else
     log "Bundle v${version} fresh installation started"
 fi
 
+# Ignore SIGHUP before launching background process so the ignored
+# disposition is inherited by the child (survives main shell exit).
+trap '' HUP
+
 # Launches sub-package installation in a background process to avoid dpkg
 # lock contention with the parent dpkg invocation.
-# trap + < /dev/null = survive sudo session cleanup (SIGHUP from closed PTY).
 {
-    trap '' HUP
-
 ${installBody}
 
     log "Bundle v${version} installation completed"
@@ -162,12 +163,13 @@ log() {
 
 log "Bundle v${version} removal started"
 
+# Ignore SIGHUP before launching background process so the ignored
+# disposition is inherited by the child (survives main shell exit).
+trap '' HUP
+
 # Launches sub-package removal in a background process to avoid dpkg lock
 # contention with the parent dpkg invocation.
-# trap + < /dev/null = survive sudo session cleanup (SIGHUP from closed PTY).
 {
-    trap '' HUP
-
 ${removeBody}
 
     log "Bundle v${version} removal completed"

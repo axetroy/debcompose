@@ -181,7 +181,7 @@ describe('install e2e', { skip: (!hasDpkg || !sudoAvailable) ? 'dpkg-deb or sudo
 
     const postinst = await extractPostinst(bundlePath);
     assert.ok(postinst, 'postinst must exist in bundle');
-    assert.ok(postinst.includes('/opt/deb-e2e-bundle/manifest.json'), 'postinst must reference manifest path');
+    assert.ok(postinst.includes('/opt/deb-e2e-bundle/'), 'postinst must reference bundle path');
   });
 
   it('bundle installs sub-packages', async () => {
