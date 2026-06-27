@@ -13,7 +13,7 @@ dpkg -i client.deb
 **debcompose** creates a bundle (wrapper `.deb`) that aggregates all sub-packages. Users install everything with a single command:
 
 ```bash
-dpkg -i product-installer.deb
+dpkg -i <bundle-package-name>.deb
 ```
 
 The bundle's `postinst` script automatically installs all sub-packages in order, and `postrm` removes them in reverse order.
@@ -271,7 +271,7 @@ dpkg -r product-installer
   dpkg -r runtime
 ```
 
-All operations are logged to `/var/log/product-installer.log`.
+All operations are logged to `/var/log/<bundle-package-name>.log`.
 
 ### Error Handling
 

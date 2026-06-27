@@ -13,7 +13,7 @@ const PKG_ALPHA = 'deb-e2e-alpha';
 const PKG_BETA = 'deb-e2e-beta';
 const BUNDLE_NAME = 'deb-e2e-bundle';
 const BUNDLE_VERSION = '2.0.0';
-const LOG_FILE = '/var/log/product-installer.log';
+const LOG_FILE = '/var/log/deb-e2e-bundle.log';
 
 async function hasDpkgDeb() {
   try {

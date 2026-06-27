@@ -60,6 +60,14 @@ describe('writePostinst', () => {
     assert.ok(content.includes('rollback()'));
     assert.ok(content.includes('INSTALLED='));
   });
+
+  it('writes postinst with custom bundleName paths', async () => {
+    await writePostinst(tmpDir, manifest, { bundleName: 'my-custom-app' });
+
+    const content = await readFile(join(tmpDir, 'postinst'), 'utf-8');
+    assert.ok(content.includes('/var/log/my-custom-app.log'));
+    assert.ok(content.includes('/var/lib/my-custom-app/packages'));
+  });
 });
 
 describe('writePostrm', () => {
@@ -102,6 +110,14 @@ describe('writePostrm', () => {
 
     const content = await readFile(join(tmpDir, 'postrm'), 'utf-8');
     assert.ok(content.includes('v1.0.0'));
+  });
+
+  it('writes postrm with custom bundleName paths', async () => {
+    await writePostrm(tmpDir, manifest, { bundleName: 'my-custom-app' });
+
+    const content = await readFile(join(tmpDir, 'postrm'), 'utf-8');
+    assert.ok(content.includes('/var/log/my-custom-app.log'));
+    assert.ok(content.includes('/var/lib/my-custom-app/packages'));
   });
 });
 

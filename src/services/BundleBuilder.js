@@ -103,8 +103,9 @@ export class BundleBuilder {
     });
 
     // Generate postinst/postrm using production templates
-    await writePostinst(debianDir, manifest, { onInstallError: cfg.onInstallError });
-    await writePostrm(debianDir, manifest);
+    const bundleName = cfg.package || cfg.name || 'debcompose-bundle';
+    await writePostinst(debianDir, manifest, { onInstallError: cfg.onInstallError, bundleName });
+    await writePostrm(debianDir, manifest, { bundleName });
 
     // Generate md5sums
     const md5sums = await generateMd5sums(bundleRoot);

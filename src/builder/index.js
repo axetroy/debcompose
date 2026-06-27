@@ -101,8 +101,8 @@ export async function buildBundle(options) {
       installedSize,
     });
 
-    await writePostinst(debianDir, manifest, { onInstallError });
-    await writePostrm(debianDir, manifest);
+    await writePostinst(debianDir, manifest, { onInstallError, bundleName: name });
+    await writePostrm(debianDir, manifest, { bundleName: name });
 
     const md5sums = await generateMd5sums(tmpDir);
     await writeFile(join(debianDir, 'md5sums'), md5sums, 'utf-8');

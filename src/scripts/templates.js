@@ -1,7 +1,23 @@
 const MANIFEST_PATH = '/opt/bundle/manifest.json';
 const DEB_DIR = '/opt/bundle';
-const LOG_FILE = '/var/log/product-installer.log';
-const PACKAGE_LIST_FILE = '/var/lib/product-installer/packages';
+
+/**
+ * Build the log file path from the bundle package name.
+ * @param {string} bundleName
+ * @returns {string}
+ */
+function logFilePath(bundleName) {
+  return `/var/log/${escapeShellString(bundleName)}.log`;
+}
+
+/**
+ * Build the persistent package list path from the bundle package name.
+ * @param {string} bundleName
+ * @returns {string}
+ */
+function packageListPath(bundleName) {
+  return `/var/lib/${escapeShellString(bundleName)}/packages`;
+}
 
 /**
  * Escape a string for safe interpolation in single-quoted shell contexts.
@@ -32,9 +48,11 @@ function escapeShellString(str) {
  * @returns {string} Bash script content
  */
 export function generatePostinst(manifest, options = {}) {
-  const { onInstallError = 'stop' } = options;
+  const { onInstallError = 'stop', bundleName = 'product-installer' } = options;
   const version = escapeShellString(manifest.version);
   const hasRollback = onInstallError === 'rollback';
+  const LOG_FILE = logFilePath(bundleName);
+  const PACKAGE_LIST_FILE = packageListPath(bundleName);
 
   return `#!/bin/bash
 set -e
@@ -118,8 +136,11 @@ exit 0
  * @param {import('../manifest/schema.js').Manifest} manifest
  * @returns {string} Bash script content
  */
-export function generatePostrm(manifest) {
+export function generatePostrm(manifest, options = {}) {
+  const { bundleName = 'product-installer' } = options;
   const version = escapeShellString(manifest.version);
+  const LOG_FILE = logFilePath(bundleName);
+  const PACKAGE_LIST_FILE = packageListPath(bundleName);
 
   return `#!/bin/bash
 set -e

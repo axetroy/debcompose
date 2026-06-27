@@ -10,6 +10,8 @@ const manifest = {
   ],
 };
 
+const CUSTOM_NAME = 'myapp-installer';
+
 describe('generatePostinst', () => {
   it('produces a bash script', () => {
     const script = generatePostinst(manifest);
@@ -41,6 +43,18 @@ describe('generatePostinst', () => {
     const script = generatePostinst(manifest);
     assert.ok(script.includes('ExitCode=0'));
     assert.ok(script.includes('ExitCode=$exit_code'));
+  });
+
+  it('defaults to product-installer paths', () => {
+    const script = generatePostinst(manifest);
+    assert.ok(script.includes('/var/log/product-installer.log'));
+    assert.ok(script.includes('/var/lib/product-installer/packages'));
+  });
+
+  it('uses bundleName for log and package list paths', () => {
+    const script = generatePostinst(manifest, { bundleName: CUSTOM_NAME });
+    assert.ok(script.includes(`/var/log/${CUSTOM_NAME}.log`));
+    assert.ok(script.includes(`/var/lib/${CUSTOM_NAME}/packages`));
   });
 
   describe('onInstallError strategy', () => {
@@ -113,5 +127,17 @@ describe('generatePostrm', () => {
     const script = generatePostrm(manifest);
     assert.ok(script.includes('ExitCode=0'));
     assert.ok(script.includes('ExitCode=$exit_code'));
+  });
+
+  it('defaults to product-installer paths for postrm', () => {
+    const script = generatePostrm(manifest);
+    assert.ok(script.includes('/var/log/product-installer.log'));
+    assert.ok(script.includes('/var/lib/product-installer/packages'));
+  });
+
+  it('uses bundleName for postrm log and package list paths', () => {
+    const script = generatePostrm(manifest, { bundleName: CUSTOM_NAME });
+    assert.ok(script.includes(`/var/log/${CUSTOM_NAME}.log`));
+    assert.ok(script.includes(`/var/lib/${CUSTOM_NAME}/packages`));
   });
 });
