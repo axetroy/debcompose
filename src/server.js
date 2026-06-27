@@ -15,11 +15,14 @@ const app = express();
 const buildStatuses = new Map();
 const BUILD_STATUS_TTL = 5 * 60 * 1000; // 5 minutes
 const MAX_BUILD_STATUSES = 1000;
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB per uploaded file
+const MAX_FILES_PER_SESSION = 5;
+const BUILD_ID_BYTES = 8;
 
 function scheduleBuildCleanup(buildId) {
   setTimeout(() => {
     const entry = buildStatuses.get(buildId);
-    if (entry && (entry.status === 'completed' || entry.status === 'failed')) {
+    if (entry && (entry.status === 'completed' || entry.status === 'failed' || entry.status === 'pending')) {
       buildStatuses.delete(buildId);
       logger.debug(`Evicted build status: ${buildId}`);
     }
@@ -75,19 +78,30 @@ const storage = multer.diskStorage({
   },
 });
 
+// Custom file filter that passes errors to next()
+const fileFilter = (req, file, cb) => {
+  if (file.originalname.endsWith(".deb")) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only .deb files are allowed"), false);
+  }
+};
+
 const upload = multer({
   storage,
   limits: {
-    fileSize: 500 * 1024 * 1024, // 500MB per file
-    files: 5, // max 5 files per session
+    fileSize: MAX_FILE_SIZE,
+    files: MAX_FILES_PER_SESSION,
   },
-  fileFilter: (req, file, cb) => {
-    if (file.originalname.endsWith(".deb")) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only .deb files are allowed"));
-    }
-  },
+  fileFilter,
+});
+
+// Multer error handler
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError || (err && err.message === 'Only .deb files are allowed')) {
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
 });
 
 // Deb files are ar archives starting with the magic bytes !<arch>\n
@@ -293,13 +307,15 @@ app.post("/api/bundles/generate", async (req, res) => {
       logger.error('Bundle generation error:', error);
       scheduleBuildCleanup(buildId);
     } finally {
-      // Cleanup session upload directory recursively
+      // Cleanup session upload directory only on success
       const sessionDir = path.join("uploads", effectiveSessionId);
-      try {
-        await fs.rm(sessionDir, { recursive: true, force: true });
-        logger.debug(`Cleaned up session directory: ${sessionDir}`);
-      } catch (e) {
-        logger.warn(`Failed to clean up session directory: ${sessionDir}`, e.message);
+      if (statusEntry.status === 'completed') {
+        try {
+          await fs.rm(sessionDir, { recursive: true, force: true });
+          logger.debug(`Cleaned up session directory: ${sessionDir}`);
+        } catch (e) {
+          logger.warn(`Failed to clean up session directory: ${sessionDir}`, e.message);
+        }
       }
     }
   })();
@@ -352,6 +368,34 @@ app.get("/api/bundles/:id", async (req, res) => {
   } catch {
     res.status(404).json({ error: "Bundle not found" });
   }
+});
+
+// Multer error handling (fileFilter errors are captured here)
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
+});
+
+// Multer error handler (must be before global error handler)
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError || (err && err.message === 'Only .deb files are allowed')) {
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
+});
+
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  // Handle DebComposeError
+  if (err && err.name === 'DebComposeError') {
+    return res.status(400).json({ error: err.message });
+  }
+
+  // Handle other errors
+  logger.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 export function startServer(customPort) {

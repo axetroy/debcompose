@@ -3,6 +3,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildBundle } from './builder/index.js';
+import { ConsoleLogger } from './logger/index.js';
+
+const logger = new ConsoleLogger(process.env.DEB_COMPOSE_LOG_LEVEL || 'info');
 
 function showGlobalHelp() {
   console.log('\nDebCompose\nUsage:\n' +
@@ -110,7 +113,7 @@ export async function runBuildCommand() {
   }
 
   if (!options.dir) {
-    console.error('Error: Please specify a directory to build from.');
+    logger.error('Error: Please specify a directory to build from.');
     console.log('\nUsage:\n  debcompose build <dir> [options]\n  debcompose <dir> [options]\n\nUse --help for more options.\n');
     process.exit(1);
   }
@@ -120,7 +123,7 @@ export async function runBuildCommand() {
     const debFiles = files.filter(f => f.endsWith('.deb'));
     
     if (debFiles.length === 0) {
-      console.error(`No .deb files found in directory: ${options.dir}`);
+      logger.error(`No .deb files found in directory: ${options.dir}`);
       process.exit(1);
     }
 
@@ -137,9 +140,9 @@ export async function runBuildCommand() {
       license: options.license,
     });
     
-    console.log(`Bundle created: ${result.outputPath}`);
+    logger.info(`Bundle created: ${result.outputPath}`);
   } catch (e) {
-    console.error('Build Error:', e.message || e);
+    logger.error('Build Error:', e.message || e);
     process.exit(1);
   }
 }
@@ -153,11 +156,6 @@ const commandHandlers = {
   serve: runServeCommand,
   server: runServeCommand,
   build: runBuildCommand,
-};
-
-const helpHandlers = {
-  global: showGlobalHelp,
-  build: showBuildHelp,
 };
 
 const DEFAULT_COMMAND = 'build';
@@ -175,7 +173,7 @@ async function handleCommand(command, userArgs) {
     return;
   }
   
-  console.error('Unknown command:', command);
+  logger.error('Unknown command:', command);
   process.exit(1);
 }
 
@@ -199,4 +197,7 @@ async function main() {
   await handleCommand(firstArg, userArgs);
 }
 
-main();
+main().catch((err) => {
+  logger.error('Fatal:', err);
+  process.exit(1);
+});

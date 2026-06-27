@@ -1,24 +1,30 @@
 import { readdir, stat, readFile } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
 /**
- * Calculate the total installed size (in kilobytes) of all .deb files in a directory.
- * @param {string} dir - Directory containing .deb files
+ * Calculate the total installed size (in kilobytes) of all files in a directory.
+ * Excludes directory entries themselves; recursively includes all files in subdirectories.
+ * @param {string} dir - Directory containing files
  * @returns {Promise<number>} Size in KB (rounded up)
  */
 export async function calculateInstalledSize(dir) {
-  const entries = await readdir(dir);
   let totalBytes = 0;
 
-  for (const entry of entries) {
-    if (extname(entry).toLowerCase() !== '.deb') {
-      continue;
+  async function walk(currentDir) {
+    const entries = await readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath);
+      } else {
+        const { size } = await stat(fullPath);
+        totalBytes += size;
+      }
     }
-    const { size } = await stat(join(dir, entry));
-    totalBytes += size;
   }
 
+  await walk(dir);
   return Math.ceil(totalBytes / 1024);
 }
 
