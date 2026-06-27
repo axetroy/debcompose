@@ -79,13 +79,14 @@ describe('createControlData', () => {
   });
 
   it('throws DebComposeError with INVALID_INPUT code', () => {
-    try {
-      createControlData({});
-      assert.fail('Should have thrown');
-    } catch (err) {
-      assert.ok(err instanceof DebComposeError);
-      assert.equal(err.code, 'INVALID_INPUT');
-    }
+    assert.throws(
+      () => createControlData({}),
+      (err) => {
+        assert.ok(err instanceof DebComposeError);
+        assert.equal(err.code, 'INVALID_INPUT');
+        return true;
+      }
+    );
   });
 
   it('overrides defaults when explicit values provided', () => {

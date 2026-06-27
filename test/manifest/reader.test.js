@@ -56,40 +56,43 @@ describe('readManifest', () => {
 
   it('throws DebComposeError with path in error details for missing file', async () => {
     const missingPath = join(tmpDir, 'nonexistent.json');
-    try {
-      await readManifest(missingPath);
-      assert.fail('Should have thrown');
-    } catch (err) {
-      assert.ok(err instanceof DebComposeError);
-      assert.ok(err.details.path.includes('nonexistent.json'));
-    }
+    await assert.rejects(
+      () => readManifest(missingPath),
+      (err) => {
+        assert.ok(err instanceof DebComposeError);
+        assert.ok(err.details.path.includes('nonexistent.json'));
+        return true;
+      }
+    );
   });
 
   it('throws DebComposeError with path in error details for invalid JSON', async () => {
     const filePath = join(tmpDir, 'invalid2.json');
     await writeFile(filePath, 'not { json', 'utf-8');
 
-    try {
-      await readManifest(filePath);
-      assert.fail('Should have thrown');
-    } catch (err) {
-      assert.ok(err instanceof DebComposeError);
-      assert.ok(err.details.path.includes('invalid2.json'));
-    }
+    await assert.rejects(
+      () => readManifest(filePath),
+      (err) => {
+        assert.ok(err instanceof DebComposeError);
+        assert.ok(err.details.path.includes('invalid2.json'));
+        return true;
+      }
+    );
   });
 
   it('throws DebComposeError with errors array for schema violation', async () => {
     const filePath = join(tmpDir, 'bad-schema2.json');
     await writeFile(filePath, JSON.stringify({ packages: [] }), 'utf-8');
 
-    try {
-      await readManifest(filePath);
-      assert.fail('Should have thrown');
-    } catch (err) {
-      assert.ok(err instanceof DebComposeError);
-      assert.ok(Array.isArray(err.details.errors));
-      assert.ok(err.details.errors.length > 0);
-    }
+    await assert.rejects(
+      () => readManifest(filePath),
+      (err) => {
+        assert.ok(err instanceof DebComposeError);
+        assert.ok(Array.isArray(err.details.errors));
+        assert.ok(err.details.errors.length > 0);
+        return true;
+      }
+    );
   });
 
   it('reads manifest with multiple packages', async () => {
