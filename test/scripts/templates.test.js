@@ -140,4 +140,21 @@ describe('generatePostrm', () => {
     assert.ok(script.includes(`/var/log/${CUSTOM_NAME}.log`));
     assert.ok(script.includes(`/var/lib/${CUSTOM_NAME}/packages`));
   });
+
+  it('renames packages file to .bak before removal', () => {
+    const script = generatePostrm(manifest);
+    assert.ok(script.includes('.bak'));
+    assert.ok(script.includes('mv "$PACKAGE_LIST_FILE" "${PACKAGE_LIST_FILE}.bak"'));
+  });
+
+  it('cleans up .bak file after successful uninstall', () => {
+    const script = generatePostrm(manifest);
+    assert.ok(script.includes('rm -f "${PACKAGE_LIST_FILE}.bak"'));
+  });
+
+  it('falls back to .bak file when packages file is missing', () => {
+    const script = generatePostrm(manifest);
+    assert.ok(script.includes('.bak'), 'should reference .bak fallback');
+    assert.ok(script.includes('recovery file'), 'should mention recovery in log');
+  });
 });

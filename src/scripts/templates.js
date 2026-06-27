@@ -159,12 +159,18 @@ log() {
 log "Bundle v${version} removal started"
 
 if [ ! -f "$PACKAGE_LIST_FILE" ]; then
-    log "WARN: Package list not found at $PACKAGE_LIST_FILE, skipping sub-package removal"
-    exit 0
+    # Fallback: if uninstall previously crashed after renaming to .bak, use the .bak file directly
+    if [ ! -f "\${PACKAGE_LIST_FILE}.bak" ]; then
+        log "WARN: Package list not found at $PACKAGE_LIST_FILE, skipping sub-package removal"
+        exit 0
+    fi
+    log "WARN: Using recovery file \${PACKAGE_LIST_FILE}.bak (previous uninstall may have crashed)"
+else
+    # Normal case: rename to .bak to survive mid-uninstall crash
+    mv "$PACKAGE_LIST_FILE" "\${PACKAGE_LIST_FILE}.bak"
 fi
 
-# Read package names (already in reverse order, saved by postinst)
-PACKAGE_NAMES=$(cat "$PACKAGE_LIST_FILE")
+PACKAGE_NAMES=$(cat "\${PACKAGE_LIST_FILE}.bak")
 rm -f "$PACKAGE_LIST_FILE"
 
 # Launch sub-package removal in background to avoid dpkg lock contention
@@ -184,6 +190,9 @@ rm -f "$PACKAGE_LIST_FILE"
             log "ExitCode=$exit_code WARN: Failed to remove: $name (may not be installed)"
         fi
     done
+
+    # Clean up .bak file after successful uninstall
+    rm -f "\${PACKAGE_LIST_FILE}.bak"
 
     log "Bundle v${version} removal completed"
 } &

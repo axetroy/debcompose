@@ -305,6 +305,22 @@ postinst exit 0
 dpkg -i bundle.deb 返回
 
 后台子进程继续运行 → 子包逐一安装完成
+
+### 安装中途崩溃的状态恢复
+
+如果后台子进程在安装过程中崩溃（例如系统断电、进程被 kill），由于持久化包列表在安装**开始前**已写入，可能发生以下不一致：
+
+- 持久化文件包含所有子包
+- 但实际只有部分子包被安装
+
+这种情况下的恢复方式：
+
+1. 用户执行 `dpkg -r <bundle-package-name>` 触发卸载
+2. postrm 读取 `packages.bak`（如果安装流程已将其重命名）或 `packages` 文件
+3. postrm 尝试卸载列表中的所有子包
+4. 对未安装的包，`dpkg -r` 会输出警告，但 postrm 不会因此失败（warn-only）
+
+这种设计下，系统最终能够恢复一致状态，代价是卸载过程中产生一些无害的警告。
 ```
 
 ### 错误恢复
@@ -327,6 +343,24 @@ dpkg -i bundle.deb 返回
 
 两种方案均记录 ExitCode 和错误信息到 `/var/log/<bundle-package-name>.log`。
 
+### 回滚失败处理
+
+当 `postinst` 在 rollback 模式下尝试卸载已安装子包，但 `dpkg -r` 也失败时：
+
+```text
+安装 Package A → 成功
+安装 Package B → 失败 → 开始回滚
+卸载 Package A → dpkg -r 失败 → ???
+```
+
+此时系统处于部分安装状态。postinst 应：
+
+1. 记录回滚失败的错误信息到日志
+2. 以非零状态退出（exit 1）
+3. dpkg 将 wrapper package 标记为安装失败
+
+**恢复方法**：用户可手动执行 `dpkg -r <bundle-package-name>` 重试卸载，postrm 会从 `packages.bak` 文件中读取包列表，尝试再次卸载所有子包。
+
 ---
 
 ## 卸载流程
@@ -348,12 +382,14 @@ dpkg -r bundle
     │
     ├─ 读取持久化包列表 (/var/lib/<bundle-package-name>/packages)
     │
-    ├─ 删除持久化文件
+    ├─ 重命名持久化文件为 packages.bak（防止卸载中途崩溃时丢失状态）
     │
     ├─ 等待 dpkg 锁释放
     │
     ├─ 按逆序卸载所有包 (dpkg -r)
     │   └─ 每次卸载记录 ExitCode
+    │
+    ├─ 删除 packages.bak（卸载完成，清理临时文件）
     │
     └─ 卸载完成
 
@@ -394,6 +430,19 @@ dpkg 检测 $2 为旧版本号 → postinst 识别为升级
 
 注意：升级并非逐个卸载再安装，而是直接通过 dpkg -i 覆盖。
 dpkg 会正确处理已安装包的版本比较和依赖关系。
+
+### 升级时的子包残留
+
+如果新版 Bundle 的 manifest 中移除了某个子包（例如 v1: [A, B, C] → v2: [A, B]），则该子包在升级后**仍然保留**在系统中。
+
+这是因为升级流程仅执行 `dpkg -i`（安装/覆盖），不执行 `dpkg -r`（卸载）。被移除的子包不会被自动删除。
+
+这是设计上的有意选择：
+- 避免误删用户数据（子包可能包含配置文件或数据）
+- 保持 dpkg 的原生语义（安装和卸载是独立操作）
+
+**清理方法**：用户可手动 `dpkg -r <removed-package>` 清理不再需要的子包。
+如需要自动清理，可在新版 postinst 中通过 `upgrade` 参数检测旧版 manifest 并执行差异卸载。
 ```
 
 ---
@@ -441,14 +490,26 @@ Builder 自动完成：
 
 ### Builder 配置选项
 
+Builder 接收以下参数来控制生成的 Bundle 包：
+
 | 选项 | 说明 | 默认值 |
 |------|------|--------|
+| `package` | 生成的 Bundle 包名 | 自动检测（首个子包包名 + `-installer`） |
+| `version` | Bundle 版本号 | `"1.0.0"` |
+| `architecture` | 目标架构 | `"amd64"` |
+| `maintainer` | 维护者信息 | `"Unknown <unknown>"` |
+| `description` | 包描述 | `"Bundle installer"` |
+| `section` | 包分类 | `"misc"` |
+| `priority` | 包优先级 | `"optional"` |
+| `license` | 许可证 | 空（不写入 control） |
 | `onInstallError` | 子包安装失败时的行为 | `"stop"` |
 | | `"stop"` — 停止安装，保留已安装包 | |
 | | `"rollback"` — 回滚所有已安装包 | |
 
 当设为 `"rollback"` 时，Builder 生成的 postinst 包含回滚函数。
 失败时自动卸载所有已成功安装的包（逆序），再退出。
+
+这些参数可通过 CLI 参数、环境变量或 HTTP API 的 `config` 对象提供。
 
 ---
 
@@ -516,43 +577,14 @@ runtime
 
 # 10. 错误恢复
 
-安装失败：
+安装错误恢复策略已在第 6 章详述（见"错误恢复"与"回滚失败处理"小节）。
 
-```text
-Package A
+Builder 通过 `onInstallError` 选项控制策略：
 
-↓
+* `"stop"` — 第 6 章方案一
+* `"rollback"` — 第 6 章方案二
 
-Package B
-
-↓
-
-失败
-```
-
-Bundle 应记录：
-
-```text
-A 已安装
-
-B 未安装
-```
-
-可选择：
-
-方案一：
-
-停止安装。
-
-方案二：
-
-回滚：
-
-```text
-卸载 A
-```
-
-具体策略由 Builder 配置。
+回滚失败时的恢复方法见第 6 章"回滚失败处理"。
 
 ---
 
@@ -615,15 +647,37 @@ B 未安装
 |------|------|------|
 | GET | `/api/config/defaults` | 获取当前服务器默认配置 |
 | POST | `/api/packages/upload` | 上传 .deb 文件 |
-| PATCH | `/api/bundles/preview` | 预览 Bundle 结构 |
+| POST | `/api/bundles/preview` | 预览 Bundle 结构 |
 | POST | `/api/bundles/generate` | 异步生成 Bundle |
 | GET | `/api/bundles/status/{buildId}` | 查询构建状态 |
 | GET | `/api/bundles/{id}` | 下载生成的 .deb |
 
 ### 12.2.0 通用约定
 
+#### 会话隔离
+
 所有上传相关的接口支持 `sessionId` 参数，用于并发安全隔离。
 未提供 `sessionId` 时使用默认 `"default"`。
+
+#### 错误响应格式
+
+所有 API 在出错时返回统一的 JSON 错误响应：
+
+```json
+{
+    "error": "人类可读的错误描述"
+}
+```
+
+可能的 HTTP 状态码：
+
+| 状态码 | 含义 |
+|--------|------|
+| 400 | 请求参数错误（缺少必填字段、文件类型不符等） |
+| 404 | 资源不存在（构建 ID 无效、文件未找到等） |
+| 500 | 服务端内部错误 |
+
+错误信息应简洁明确，便于客户端直接展示给用户。
 
 ### 12.2.1 包上传
 
@@ -660,10 +714,10 @@ Request Body:
     ],
     "order": ["runtime", "server"],
     "sessionId": "session_xxx",
-    "onInstallError": "rollback",
     "config": {
         "version": "2.0.0",
-        "section": "admin"
+        "section": "admin",
+        "onInstallError": "rollback"
     }
 }
 ```
@@ -703,7 +757,7 @@ Response:
 ### 12.2.4 预览 Bundle 结构
 
 ```text
-PATCH /api/bundles/preview
+POST /api/bundles/preview
 
 Content-Type: application/json
 
@@ -754,6 +808,21 @@ GET /api/bundles/{bundle_id}
 * 仅需 deb 文件，无需直接使用 Node Builder
 * 图形化操作，适合非技术用户
 * 离线环境调试 Bundle
+
+## 12.5 安全考量
+
+HTTP 服务器当前设计为**本地开发与调试工具**，未内置认证机制：
+
+* 任何能访问服务器端口的人均可上传文件、生成 Bundle、下载产物
+* 上传的 .deb 文件在构建完成后自动清理（session 目录）
+* 生成的 Bundle 在下载后自动删除
+
+### 安全边界建议
+
+* 默认绑定 `127.0.0.1`，避免暴露到外部网络
+* 生产环境应置于反向代理之后（如 nginx），由代理层处理认证和 TLS
+* 上传文件通过文件扩展名和文件头（magic bytes）双重校验，防止非 .deb 文件注入
+* 文件名经过 `path.basename()` 清洗，防止路径遍历攻击
 
 ---
 

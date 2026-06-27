@@ -14,61 +14,77 @@
         }
 
         .container {
-            max-width: 720px;
+            max-width: 740px;
             margin: 0 auto;
+            padding: 0 1rem;
         }
 
         h1 {
-            font-size: 1.875rem;
+            font-size: 1.75rem;
             font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 0.9rem;
             margin-bottom: 1.5rem;
-            color: #111827;
         }
 
         .section {
             background: #fff;
             border: 1px solid #e5e7eb;
             border-radius: 0.75rem;
-            padding: 2rem;
-            margin-bottom: 1.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.25rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
-        h2, h3 {
-            font-size: 1.25rem;
+        .section h2 {
+            font-size: 1.1rem;
             font-weight: 600;
+            margin: 0 0 1rem 0;
             color: #374151;
-            margin-bottom: 1rem;
         }
 
-        p {
-            margin-bottom: 0.75rem;
+        .step-tag {
+            display: inline-block;
+            background: #2563eb;
+            color: #fff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-radius: 999px;
+            width: 1.5rem;
+            height: 1.5rem;
+            text-align: center;
+            line-height: 1.5rem;
+            margin-right: 0.5rem;
         }
 
         .form-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
         }
 
         .form-group {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
+            gap: 0.35rem;
         }
 
         .form-group label {
             font-weight: 600;
             color: #374151;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
         }
 
         input, select, textarea {
-            padding: 0.75rem;
+            padding: 0.6rem 0.75rem;
             border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
+            border-radius: 0.375rem;
             font-size: 0.875rem;
-            transition: all 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
 
         input:focus, select:focus, textarea:focus {
@@ -79,77 +95,134 @@
 
         textarea {
             resize: vertical;
-            min-height: 4rem;
+            min-height: 3.5rem;
         }
 
         .btn {
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
+            padding: 0.6rem 1.25rem;
+            border-radius: 0.375rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
             border: none;
+            font-size: 0.875rem;
+            transition: background-color 0.2s, opacity 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .btn-primary {
             background-color: #2563eb;
             color: white;
         }
-
-        .btn-primary:hover {
-            background-color: #1d4ed8;
-        }
+        .btn-primary:hover:not(:disabled) { background-color: #1d4ed8; }
 
         .btn-outline {
             background-color: white;
-            color: #2563eb;
+            color: #374151;
             border: 1px solid #d1d5db;
         }
+        .btn-outline:hover:not(:disabled) { background-color: #f3f4f6; }
 
-        .btn-outline:hover {
-            background-color: #f0f9ff;
+        .btn-secondary {
+            background-color: #7c3aed;
+            color: white;
         }
+        .btn-secondary:hover:not(:disabled) { background-color: #6d28d9; }
+
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+        }
+        .btn-danger:hover:not(:disabled) { background-color: #dc2626; }
 
         .package-list {
             border: 1px solid #e5e7eb;
             border-radius: 0.5rem;
-            background-color: #f9fafb;
-            padding: 0.5rem 0;
+            background: #f9fafb;
+            min-height: 4rem;
         }
 
         .package-item {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 0.75rem 1rem;
-            background-color: white;
-            border-bottom: 1px solid #f3f4f6;
-        }
-
-        .package-item:last-child {
-            border-bottom: none;
-        }
-
-        .package-buttons {
-            display: flex;
             gap: 0.5rem;
+            padding: 0.6rem 0.75rem;
+            background: white;
+            border-bottom: 1px solid #f3f4f6;
+            cursor: grab;
+            user-select: none;
+            transition: background-color 0.15s, box-shadow 0.15s;
+        }
+        .package-item:last-child { border-bottom: none; }
+        .package-item:hover { background-color: #fafafa; }
+        .package-item.dragging {
+            opacity: 0.4;
+        }
+        .package-item.drag-over {
+            border-top: 2px solid #2563eb;
+            background-color: #eff6ff;
         }
 
-        .package-button {
-            width: 1.75rem;
-            height: 1.75rem;
+        .drag-handle {
+            color: #9ca3af;
+            font-size: 1rem;
+            cursor: grab;
+            padding: 0 0.25rem;
+            flex-shrink: 0;
+        }
+
+        .pkg-name {
+            flex: 1;
+            font-size: 0.875rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pkg-size {
+            color: #9ca3af;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .pkg-actions {
+            display: flex;
+            gap: 0.25rem;
+            flex-shrink: 0;
+        }
+
+        .pkg-btn {
+            width: 1.5rem;
+            height: 1.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: #f3f4f6;
-            border: none;
-            border-radius: 0.375rem;
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.25rem;
             cursor: pointer;
-            transition: all 0.2s;
+            font-size: 0.75rem;
+            transition: background-color 0.15s;
+        }
+        .pkg-btn:hover:not(:disabled) { background-color: #e5e7eb; }
+        .pkg-btn:disabled { opacity: 0.3; cursor: default; }
+        .pkg-btn.remove:hover { background-color: #fef2f2; color: #dc2626; border-color: #fecaca; }
+
+        .empty-message {
+            padding: 2rem;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 0.875rem;
         }
 
-        .package-button:hover {
-            background-color: #e5e7eb;
+        .action-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
         }
 
         .result-section {
@@ -157,20 +230,14 @@
             background-color: #f0fdf4;
             display: none;
         }
-
-        .result-section.active {
-            display: block;
-        }
+        .result-section.active { display: block; }
 
         .build-progress {
             border-color: #f59e0b;
             background-color: #fffbeb;
             display: none;
         }
-
-        .build-progress.active {
-            display: block;
-        }
+        .build-progress.active { display: block; }
 
         .progress-bar {
             width: 100%;
@@ -178,7 +245,7 @@
             background-color: #fde68a;
             border-radius: 0.375rem;
             overflow: hidden;
-            margin-top: 1rem;
+            margin-top: 0.75rem;
         }
 
         .progress-bar-fill {
@@ -194,20 +261,14 @@
             background-color: #fef2f2;
             display: none;
         }
-
-        .build-error.active {
-            display: block;
-        }
+        .build-error.active { display: block; }
 
         .preview-section {
             border-color: #8b5cf6;
             background-color: #f5f3ff;
             display: none;
         }
-
-        .preview-section.active {
-            display: block;
-        }
+        .preview-section.active { display: block; }
 
         .structure-tree {
             font-family: 'Courier New', monospace;
@@ -222,81 +283,60 @@
             line-height: 1.6;
         }
 
-        .preview-packages {
-            margin-top: 0.75rem;
+        .status-text {
+            color: #6b7280;
+            font-size: 0.85rem;
         }
 
-        .preview-package-item {
+        .radio-group {
+            display: flex;
+            gap: 1.5rem;
+            padding-top: 0.25rem;
+        }
+
+        .radio-group label {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 0.375rem 0;
+            gap: 0.4rem;
+            font-weight: 400;
             font-size: 0.875rem;
+            cursor: pointer;
         }
 
-        .btn-secondary {
-            background-color: #8b5cf6;
-            color: white;
-            margin-right: 0.5rem;
+        .radio-group input[type="radio"] {
+            accent-color: #2563eb;
         }
 
-        .btn-secondary:hover {
-            background-color: #7c3aed;
-        }
-
-        .status-check {
-            color: #059669;
+        .tag {
+            display: inline-block;
+            font-size: 0.7rem;
             font-weight: 600;
+            padding: 0.15rem 0.5rem;
+            border-radius: 0.25rem;
+            margin-left: 0.5rem;
         }
-
-        .selected-files {
-            margin-top: 1rem;
-            background-color: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 0.5rem;
-            padding: 1rem;
-        }
-
-        .selected-file {
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #bbf7d0;
-        }
-
-        .selected-file:last-child {
-            border-bottom: none;
-        }
-
-        #generateBundleBtn {
-            margin-left: auto;
-            margin-top: 1rem;
-        }
-
-        .info-text {
-            color: #6b7280;
-            font-size: 0.875rem;
-        }
+        .tag-stop { background: #f3f4f6; color: #6b7280; }
+        .tag-rollback { background: #fef3c7; color: #b45309; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>DebCompose Bundle Generator</h1>
-            <p class="info-text">Create a .deb bundle from multiple packages with full configuration control.</p>
+            <p class="subtitle">Create a .deb bundle from multiple packages with full configuration control.</p>
         </header>
 
         <section class="section">
-            <h2>1️⃣ Bundle Configuration</h2>
+            <h2><span class="step-tag">1</span> Bundle Configuration</h2>
             <div class="form-grid">
                 <div class="form-group">
                     <label for="configName">Package Name</label>
                     <input type="text" id="configName" placeholder="auto-detect (optional)" value="my-product">
                 </div>
-
                 <div class="form-group">
                     <label for="configVersion">Version</label>
                     <input type="text" id="configVersion" value="1.0.0">
                 </div>
-
                 <div class="form-group">
                     <label for="configArch">Architecture</label>
                     <select id="configArch">
@@ -307,18 +347,15 @@
                         <option value="all">all</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="configMaintainer">Maintainer</label>
                     <input type="text" id="configMaintainer" value="Unknown <unknown>">
                 </div>
-
-                <div class="form-group">
+                <div class="form-group" style="grid-column: span 1;">
                     <label for="configDescription">Description</label>
                     <textarea id="configDescription" placeholder="Bundle description...">Bundle installer
 Auto-generated by debcompose.</textarea>
                 </div>
-
                 <div class="form-group">
                     <label for="configSection">Section</label>
                     <select id="configSection">
@@ -326,37 +363,13 @@ Auto-generated by debcompose.</textarea>
                         <option value="comm">comm</option>
                         <option value="devel">devel</option>
                         <option value="doc">doc</option>
-                        <option value="editors">editors</option>
-                        <option value="electronics">electronics</option>
-                        <option value="embedded">embedded</option>
-                        <option value="games">games</option>
-                        <option value="graphics">graphics</option>
-                        <option value="hamradio">hamradio</option>
-                        <option value="interpreters">interpreters</option>
                         <option value="libs">libs</option>
-                        <option value="localization">localization</option>
-                        <option value="mail">mail</option>
-                        <option value="math">math</option>
                         <option value="misc" selected>misc</option>
                         <option value="net">net</option>
-                        <option value="news">news</option>
-                        <option value="oldlibs">oldlibs</option>
-                        <option value="otherosfs">otherosfs</option>
-                        <option value="perl">perl</option>
-                        <option value="python">python</option>
-                        <option value="science">science</option>
-                        <option value="shells">shells</option>
-                        <option value="sound">sound</option>
-                        <option value="tex">tex</option>
-                        <option value="text">text</option>
                         <option value="utils">utils</option>
-                        <option value="video">video</option>
                         <option value="x11">x11</option>
-                        <option value="java">java</option>
-                        <option value="ruby">ruby</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="configPriority">Priority</label>
                     <select id="configPriority">
@@ -367,152 +380,157 @@ Auto-generated by debcompose.</textarea>
                         <option value="extra">extra</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="configLicense">License</label>
                     <input type="text" id="configLicense" placeholder="e.g., MIT, GPL-3.0, Apache-2.0">
                 </div>
-            </div>
-        </section>
-
-        <section class="section">
-            <h2>2️⃣ Package Upload</h2>
-            <p class="info-text">Upload .deb files to include in the bundle. Up to 5 files allowed.</p>
-
-            <div style="margin-top: 1rem;">
-                <input type="file" id="fileInput" multiple accept=".deb" style="display: none;">
-                <button class="btn btn-outline" onclick="document.getElementById('fileInput').click()">
-                    📁 Select .deb Files
-                </button>
-            </div>
-
-            <div id="uploadStatus" class="selected-files" style="display: none;">
-                <strong>Selected Files:</strong>
-                <div id="selectedFilesList"></div>
-            </div>
-        </section>
-
-        <section class="section">
-            <h2>3️⃣ Package Order Management</h2>
-            <p class="info-text">Manage the order of packages (most important first). Use ↑↓ buttons to reorder.</p>
-
-            <div class="package-list" id="packageList">
-                <div class="package-item">
-                    <span style="flex: 1;">No packages selected yet.</span>
-                    <div class="package-buttons">
-                        <button class="package-button" disabled title="Move up">↑</button>
-                        <button class="package-button" disabled title="Move down">↓</button>
+                <div class="form-group">
+                    <label>Error Recovery Strategy</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="onInstallError" value="stop" checked>
+                            Stop <span class="tag tag-stop">default</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="onInstallError" value="rollback">
+                            Rollback <span class="tag tag-rollback">rollback</span>
+                        </label>
                     </div>
+                    <span class="status-text" style="font-size:0.75rem;">
+                        Stop: halt on first failure. Rollback: uninstall all previously installed packages on failure.
+                    </span>
                 </div>
             </div>
+        </section>
 
-            <button id="previewBtn" class="btn btn-secondary" onclick="previewBundle()">
-                👁️ Preview
-            </button>
-            <button id="generateBundleBtn" class="btn btn-primary" onclick="generateBundle()">
-                🔨 Generate Bundle
-            </button>
+        <section class="section">
+            <h2><span class="step-tag">2</span> Package Upload</h2>
+            <p class="status-text" style="margin-bottom: 0.75rem;">
+                Upload .deb files to include in the bundle. Up to <strong>5 files</strong> allowed.
+            </p>
+
+            <div>
+                <input type="file" id="fileInput" multiple accept=".deb" style="display: none;">
+                <button class="btn btn-outline" onclick="document.getElementById('fileInput').click()">
+                    Select .deb Files
+                </button>
+                <span id="fileCount" class="status-text" style="margin-left: 0.75rem;"></span>
+            </div>
+
+            <div id="selectedFilesList" style="margin-top: 0.75rem; display: none;"></div>
+        </section>
+
+        <section class="section">
+            <h2><span class="step-tag">3</span> Installation Order</h2>
+            <p class="status-text" style="margin-bottom: 0.75rem;">
+                Drag to reorder packages. First package is installed first.
+            </p>
+
+            <div class="package-list" id="packageList">
+                <div class="empty-message">No packages selected yet.</div>
+            </div>
+
+            <div class="action-bar">
+                <button id="previewBtn" class="btn btn-secondary" onclick="previewBundle()" disabled>
+                    Preview
+                </button>
+                <button id="generateBtn" class="btn btn-primary" onclick="generateBundle()" disabled>
+                    Generate Bundle
+                </button>
+            </div>
         </section>
 
         <section class="section preview-section" id="previewSection">
-            <h2>📦 Bundle Structure Preview</h2>
-            <div class="preview-packages" id="previewPackages"></div>
+            <h2>Bundle Structure Preview</h2>
+            <div id="previewPackages"></div>
             <div class="structure-tree" id="previewStructure"></div>
         </section>
 
         <section class="section build-progress" id="buildProgress">
-            <h2>4️⃣ Building Bundle</h2>
-            <div class="info-text">
+            <h2>Building Bundle</h2>
+            <div class="status-text">
                 <strong>Status:</strong> <span id="buildStatus">Queued...</span>
             </div>
             <div class="progress-bar">
                 <div class="progress-bar-fill" id="progressFill"></div>
             </div>
             <div style="margin-top: 0.5rem;">
-                <span id="buildProgressText" class="info-text">Waiting for build to start...</span>
+                <span id="buildProgressText" class="status-text">Waiting for build to start...</span>
             </div>
         </section>
 
         <section class="section build-error" id="buildError">
-            <h2>❌ Build Failed</h2>
-            <div class="info-text">
+            <h2>Build Failed</h2>
+            <div class="status-text">
                 <strong>Error:</strong> <span id="buildErrorMessage" style="color: #dc2626;"></span>
             </div>
         </section>
 
-        <section class="section result-section" id="result" style="display: none;">
-            <h2>4️⃣ Build Result</h2>
-            <div class="info-text">
-                <strong>Status:</strong> <span style="color: #059669;">✅ Bundle Created Successfully!</span>
+        <section class="section result-section" id="result">
+            <h2>Build Result</h2>
+            <div class="status-text">
+                <strong>Status:</strong> <span style="color: #059669; font-weight: 600;">Bundle Created Successfully</span>
             </div>
-            <div style="margin-top: 1rem;">
-                <strong>Bundle ID:</strong> <span id="bundleIdResult">bundle-12345</span>
+            <div style="margin-top: 0.75rem;">
+                <strong>Bundle:</strong> <span id="bundleIdResult" style="font-family: monospace;"></span>
             </div>
-            <div style="margin-top: 0.5rem;">
-                <strong>Download:</strong>
+            <div style="margin-top: 0.75rem;">
                 <a href="#" id="downloadLink" class="btn btn-primary" style="text-decoration: none;">
-                    📥 Download .deb Bundle
+                    Download .deb Bundle
                 </a>
             </div>
         </section>
     </div>
 
     <script>
-        // Global state
+        // State
         let uploadedFiles = [];
         let packageOrder = [];
+        let dragIndex = null;
         const sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        
-        // Load default configuration from environment variables via API
-        async function loadDefaultConfig() {
-            try {
-                const response = await fetch('/api/config/defaults');
-                const config = await response.json();
-                
-                // Populate form fields with environment variable defaults
-                if (config.name) document.getElementById('configName').value = config.name;
-                document.getElementById('configVersion').value = config.version;
-                document.getElementById('configArch').value = config.arch;
-                document.getElementById('configMaintainer').value = config.maintainer;
-                document.getElementById('configDescription').value = config.description;
-                document.getElementById('configSection').value = config.section;
-                document.getElementById('configPriority').value = config.priority;
-                document.getElementById('configLicense').value = config.license;
-            } catch (err) {
-                console.warn('Failed to load default config from server:', err);
-                // Fallback to hardcoded defaults if API fails
-            }
-        }
-        
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', loadDefaultConfig);
 
-        // File upload handling
+        // On load: fetch env defaults
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/config/defaults');
+                const cfg = await res.json();
+                if (cfg.name) document.getElementById('configName').value = cfg.name;
+                document.getElementById('configVersion').value = cfg.version || '1.0.0';
+                if (cfg.arch) document.getElementById('configArch').value = cfg.arch;
+                if (cfg.maintainer) document.getElementById('configMaintainer').value = cfg.maintainer;
+                if (cfg.description) document.getElementById('configDescription').value = cfg.description;
+                if (cfg.section) document.getElementById('configSection').value = cfg.section;
+                if (cfg.priority) document.getElementById('configPriority').value = cfg.priority;
+                if (cfg.license) document.getElementById('configLicense').value = cfg.license;
+            } catch (_) { /* use defaults */ }
+        });
+
+        // File input
         document.getElementById('fileInput').addEventListener('change', async function(e) {
             const files = e.target.files;
             if (files.length === 0) return;
 
-            for (let file of files) {
+            for (const file of files) {
                 if (!file.name.endsWith('.deb')) {
-                    alert('Only .deb files are allowed!');
-                    return;
+                    alert('Only .deb files are allowed');
+                    continue;
+                }
+                if (uploadedFiles.length >= 5) {
+                    alert('Maximum 5 files allowed');
+                    break;
                 }
 
-                const formData = new FormData();
-                formData.append('package', file);
-                formData.append('sessionId', sessionId);
+                const fd = new FormData();
+                fd.append('package', file);
+                fd.append('sessionId', sessionId);
 
                 try {
-                    const response = await fetch('/api/packages/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const result = await response.json();
+                    const res = await fetch('/api/packages/upload', { method: 'POST', body: fd });
+                    const result = await res.json();
                     if (result.filename) {
                         uploadedFiles.push({
                             name: file.name,
                             size: file.size,
-                            type: file.type,
                             id: result.filename
                         });
                     }
@@ -522,64 +540,137 @@ Auto-generated by debcompose.</textarea>
                 }
             }
 
-            updatePackageList();
-            displaySelectedFiles();
+            this.value = '';
+            render();
         });
 
-        // Update package list display
-        function updatePackageList() {
+        // Render all UI state
+        function render() {
+            renderSelectedFiles();
+            renderPackageList();
+            updateButtons();
+        }
+
+        function renderSelectedFiles() {
+            const container = document.getElementById('selectedFilesList');
+            const count = document.getElementById('fileCount');
+
+            if (uploadedFiles.length === 0) {
+                container.style.display = 'none';
+                count.textContent = '';
+                return;
+            }
+
+            container.style.display = 'block';
+            count.textContent = '(' + uploadedFiles.length + ' file' + (uploadedFiles.length > 1 ? 's' : '') + ')';
+
+            container.innerHTML = uploadedFiles.map(pkg => {
+                const size = pkg.size > 1024 * 1024
+                    ? (pkg.size / 1024 / 1024).toFixed(1) + ' MB'
+                    : (pkg.size / 1024).toFixed(1) + ' KB';
+                return '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid #f3f4f6;font-size:0.85rem;">' +
+                    '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + pkg.name + '</span>' +
+                    '<span style="color:#9ca3af;font-size:0.75rem;">' + size + '</span>' +
+                    '<button class="pkg-btn remove" onclick="removeFile(\'' + pkg.id + '\')" title="Remove">x</button>' +
+                    '</div>';
+            }).join('');
+        }
+
+        function removeFile(id) {
+            uploadedFiles = uploadedFiles.filter(p => p.id !== id);
+            render();
+        }
+
+        function renderPackageList() {
             packageOrder = [...uploadedFiles];
             const list = document.getElementById('packageList');
 
             if (packageOrder.length === 0) {
-                list.innerHTML = '<div class="package-item"><span style="flex: 1;">No packages selected yet.</span></div>';
+                list.innerHTML = '<div class="empty-message">No packages selected yet.</div>';
                 return;
             }
 
-            list.innerHTML = '';
-            packageOrder.forEach((pkg, index) => {
-                list.innerHTML += `
-                    <div class="package-item">
-                        <span>${pkg.name}</span>
-                        <div class="package-buttons">
-                            <button class="package-button" onclick="movePackage(${index}, -1)" title="Move up">↑</button>
-                            <button class="package-button" onclick="movePackage(${index}, 1)" title="Move down">↓</button>
-                        </div>
-                    </div>
-                `;
+            list.innerHTML = packageOrder.map((pkg, idx) => {
+                const size = pkg.size > 1024 * 1024
+                    ? (pkg.size / 1024 / 1024).toFixed(1) + ' MB'
+                    : (pkg.size / 1024).toFixed(1) + ' KB';
+                return '<div class="package-item" draggable="true" data-index="' + idx + '">' +
+                    '<span class="drag-handle">⠿</span>' +
+                    '<span class="pkg-name">' + pkg.name + '</span>' +
+                    '<span class="pkg-size">' + size + '</span>' +
+                    '<div class="pkg-actions">' +
+                    '<button class="pkg-btn" onclick="movePackage(' + idx + ', -1)" title="Move up">&#9650;</button>' +
+                    '<button class="pkg-btn" onclick="movePackage(' + idx + ', 1)" title="Move down">&#9660;</button>' +
+                    '</div>' +
+                    '</div>';
+            }).join('');
+
+            // Attach drag/drop listeners
+            const items = list.querySelectorAll('.package-item');
+            items.forEach(item => {
+                item.addEventListener('dragstart', onDragStart);
+                item.addEventListener('dragend', onDragEnd);
+                item.addEventListener('dragover', onDragOver);
+                item.addEventListener('dragleave', onDragLeave);
+                item.addEventListener('drop', onDrop);
             });
         }
 
-        // Move package up or down
+        // Drag and drop handlers
+        function onDragStart(e) {
+            dragIndex = parseInt(this.dataset.index);
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(dragIndex));
+        }
+
+        function onDragEnd() {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.package-item').forEach(el => el.classList.remove('drag-over'));
+            dragIndex = null;
+        }
+
+        function onDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.classList.add('drag-over');
+        }
+
+        function onDragLeave() {
+            this.classList.remove('drag-over');
+        }
+
+        function onDrop(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+            const toIdx = parseInt(this.dataset.index);
+            if (fromIdx === toIdx || isNaN(fromIdx) || isNaN(toIdx)) return;
+            const item = packageOrder.splice(fromIdx, 1)[0];
+            packageOrder.splice(toIdx, 0, item);
+            renderPackageList();
+        }
+
+        // Button-based reorder (kept as accessibility fallback)
         function movePackage(index, direction) {
-            if (index + direction < 0 || index + direction >= packageOrder.length) return;
-
+            const to = index + direction;
+            if (to < 0 || to >= packageOrder.length) return;
             const temp = packageOrder[index];
-            packageOrder[index] = packageOrder[index + direction];
-            packageOrder[index + direction] = temp;
-            updatePackageList();
+            packageOrder[index] = packageOrder[to];
+            packageOrder[to] = temp;
+            renderPackageList();
         }
 
-        // Display selected files
-        function displaySelectedFiles() {
-            const selectedFilesDiv = document.getElementById('selectedFilesList');
-            if (uploadedFiles.length === 0) {
-                selectedFilesDiv.style.display = 'none';
-                return;
-            }
-
-            selectedFilesDiv.style.display = 'block';
-            selectedFilesDiv.innerHTML = uploadedFiles.map(pkg => `<div class="selected-file">${pkg.name}</div>`).join('');
+        function updateButtons() {
+            const hasPackages = packageOrder.length > 0;
+            document.getElementById('previewBtn').disabled = !hasPackages;
+            document.getElementById('generateBtn').disabled = !hasPackages;
         }
 
-        // Generate bundle function with progress tracking
-        async function generateBundle() {
-            if (packageOrder.length === 0) {
-                alert('No packages selected to build!');
-                return;
-            }
-
-            const config = {
+        // Read config form
+        function readConfig() {
+            const errorStrategy = document.querySelector('input[name="onInstallError"]:checked');
+            return {
                 name: document.getElementById('configName').value || undefined,
                 version: document.getElementById('configVersion').value || '1.0.0',
                 arch: document.getElementById('configArch').value,
@@ -587,189 +678,164 @@ Auto-generated by debcompose.</textarea>
                 description: document.getElementById('configDescription').value,
                 section: document.getElementById('configSection').value,
                 priority: document.getElementById('configPriority').value,
-                license: document.getElementById('configLicense').value
+                license: document.getElementById('configLicense').value,
+                onInstallError: errorStrategy ? errorStrategy.value : undefined
             };
-
-            const btn = document.getElementById('generateBundleBtn');
-            btn.disabled = true;
-            btn.textContent = '⏳ Building...';
-
-            // Hide old results
-            document.getElementById('result').style.display = 'none';
-            document.getElementById('buildError').classList.remove('active');
-            document.getElementById('buildError').style.display = 'none';
-
-            // Show progress section
-            const progressSection = document.getElementById('buildProgress');
-            progressSection.classList.add('active');
-            progressSection.style.display = 'block';
-            document.getElementById('buildStatus').textContent = 'Queued...';
-            document.getElementById('buildProgressText').textContent = 'Sending build request...';
-            document.getElementById('progressFill').style.width = '0%';
-
-            try {
-                const response = await fetch('/api/bundles/generate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        packages: packageOrder.map(p => ({ name: p.name, id: p.id, file: p.name })),
-                        order: packageOrder.map(p => p.name),
-                        config: config,
-                        sessionId: sessionId
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!data.buildId) {
-                    throw new Error(data.error || 'Failed to start build');
-                }
-
-                document.getElementById('buildStatus').textContent = 'Building...';
-                document.getElementById('buildProgressText').textContent = 'Starting build process...';
-                document.getElementById('progressFill').style.width = '10%';
-
-                // Poll for status
-                const buildId = data.buildId;
-                let pollCount = 0;
-                const maxPolls = 300; // 5 minutes max wait
-                
-                const pollInterval = setInterval(async () => {
-                    pollCount++;
-                    if (pollCount > maxPolls) {
-                        clearInterval(pollInterval);
-                        btn.disabled = false;
-                        btn.textContent = '🔨 Generate Bundle';
-                        document.getElementById('buildStatus').textContent = 'Timed out';
-                        document.getElementById('buildProgressText').textContent = 'Build timed out after 5 minutes.';
-                        return;
-                    }
-
-                    try {
-                        const statusRes = await fetch(`/api/bundles/status/${buildId}`);
-                        const status = await statusRes.json();
-
-                        // Update progress
-                        document.getElementById('progressFill').style.width = status.progress + '%';
-                        document.getElementById('buildProgressText').textContent = 
-                            `Progress: ${status.progress}%`;
-
-                        if (status.status === 'completed') {
-                            clearInterval(pollInterval);
-                            document.getElementById('buildStatus').textContent = '✅ Completed';
-                            document.getElementById('buildProgressText').textContent = 'Build completed successfully!';
-                            document.getElementById('progressFill').style.width = '100%';
-
-                            // Show result section
-                            progressSection.classList.remove('active');
-                            progressSection.style.display = 'none';
-
-                            document.getElementById('result').style.display = 'block';
-                            document.getElementById('bundleIdResult').textContent = status.bundleId;
-                            document.getElementById('downloadLink').href = status.downloadUrl;
-
-                            btn.disabled = false;
-                            btn.textContent = '🔨 Generate Bundle';
-                        } else if (status.status === 'failed') {
-                            clearInterval(pollInterval);
-                            document.getElementById('buildStatus').textContent = '❌ Failed';
-                            document.getElementById('buildProgressText').textContent = 'Build failed.';
-
-                            // Show error section
-                            progressSection.classList.remove('active');
-                            progressSection.style.display = 'none';
-
-                            document.getElementById('buildErrorMessage').textContent = status.error || 'Unknown error';
-                            document.getElementById('buildError').classList.add('active');
-                            document.getElementById('buildError').style.display = 'block';
-
-                            btn.disabled = false;
-                            btn.textContent = '🔨 Generate Bundle';
-                        }
-                    } catch (err) {
-                        clearInterval(pollInterval);
-                        btn.disabled = false;
-                        btn.textContent = '🔨 Generate Bundle';
-                        alert('Status check failed: ' + err.message);
-                    }
-                }, 1000);
-            } catch (err) {
-                btn.disabled = false;
-                btn.textContent = '🔨 Generate Bundle';
-                progressSection.classList.remove('active');
-                progressSection.style.display = 'none';
-                alert('Error: ' + err.message);
-            }
         }
 
-        // Preview bundle structure
+        // Preview
         async function previewBundle() {
-            if (packageOrder.length === 0) {
-                alert('No packages to preview!');
-                return;
-            }
-
-            const config = {
-                name: document.getElementById('configName').value || undefined,
-                version: document.getElementById('configVersion').value || '1.0.0',
-                arch: document.getElementById('configArch').value,
-                maintainer: document.getElementById('configMaintainer').value,
-                description: document.getElementById('configDescription').value,
-                section: document.getElementById('configSection').value,
-                priority: document.getElementById('configPriority').value,
-                license: document.getElementById('configLicense').value
-            };
+            if (packageOrder.length === 0) { alert('No packages to preview'); return; }
+            const config = readConfig();
 
             try {
-                const response = await fetch('/api/bundles/preview', {
+                const res = await fetch('/api/bundles/preview', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         packages: packageOrder.map(p => ({ name: p.name, id: p.id, file: p.name })),
                         order: packageOrder.map(p => p.name),
-                        config: config,
-                        sessionId: sessionId
+                        config,
+                        sessionId
                     })
                 });
+                const data = await res.json();
+                if (!data.manifest) throw new Error(data.error || 'Preview failed');
 
-                const data = await response.json();
+                const sec = document.getElementById('previewSection');
+                sec.classList.add('active');
+                sec.style.display = 'block';
 
-                if (!data.manifest) {
-                    throw new Error(data.error || 'Failed to load preview');
-                }
-
-                // Show preview section
-                const previewSection = document.getElementById('previewSection');
-                previewSection.classList.add('active');
-                previewSection.style.display = 'block';
-
-                // Display packages
                 const pkgHtml = data.packages.map(p =>
-                    `<div class="preview-package-item">📦 <strong>${p.name}</strong> <span style="color: #6b7280;">(${p.file})</span></div>`
+                    '<div style="padding:0.2rem 0;font-size:0.85rem;">' +
+                    '<strong>' + p.name + '</strong> <span style="color:#6b7280;">(' + p.file + ')</span></div>'
                 ).join('');
                 document.getElementById('previewPackages').innerHTML =
-                    `<strong>Packages (${data.packages.length}):</strong>` +
-                    `<div style="margin-top: 0.5rem;">${pkgHtml}</div>` +
-                    `<div style="margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280;">` +
-                    `Version: ${data.config.version} | Arch: ${data.config.arch} | ${data.config.section}/${data.config.priority}</div>`;
+                    '<strong>Packages (' + data.packages.length + '):</strong>' +
+                    '<div style="margin-top:0.5rem;">' + pkgHtml + '</div>' +
+                    '<div style="margin-top:0.5rem;font-size:0.85rem;color:#6b7280;">' +
+                    'Version: ' + data.config.version + ' | Arch: ' + data.config.arch +
+                    ' | ' + data.config.section + '/' + data.config.priority + '</div>';
 
-                // Display structure tree
                 const treeLines = data.structure.map(item => {
                     const indent = '    '.repeat((item.path.match(/\//g) || []).length - 1);
-                    const prefix = item.type === 'dir' ? '📁' : '📄';
-                    return `${indent}${prefix} ${item.path}`;
+                    const prefix = item.type === 'dir' ? '+-- ' : '    ';
+                    return indent + prefix + item.path;
                 }).join('\n');
                 document.getElementById('previewStructure').textContent = treeLines;
             } catch (err) {
                 alert('Preview failed: ' + err.message);
             }
         }
+
+        // Generate bundle
+        async function generateBundle() {
+            if (packageOrder.length === 0) { alert('No packages selected'); return; }
+            const config = readConfig();
+
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.textContent = 'Building...';
+
+            document.getElementById('result').classList.remove('active');
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('buildError').classList.remove('active');
+            document.getElementById('buildError').style.display = 'none';
+
+            const progressSec = document.getElementById('buildProgress');
+            progressSec.classList.add('active');
+            progressSec.style.display = 'block';
+            document.getElementById('buildStatus').textContent = 'Queued...';
+            document.getElementById('buildProgressText').textContent = 'Sending build request...';
+            document.getElementById('progressFill').style.width = '0%';
+
+            try {
+                const res = await fetch('/api/bundles/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        packages: packageOrder.map(p => ({ name: p.name, id: p.id, file: p.name })),
+                        order: packageOrder.map(p => p.name),
+                        config,
+                        sessionId
+                    })
+                });
+                const data = await res.json();
+                if (!data.buildId) throw new Error(data.error || 'Failed to start build');
+
+                document.getElementById('buildStatus').textContent = 'Building...';
+                document.getElementById('buildProgressText').textContent = 'Starting build process...';
+                document.getElementById('progressFill').style.width = '10%';
+
+                const buildId = data.buildId;
+                const maxPolls = 300;
+                let pollCount = 0;
+
+                const interval = setInterval(async () => {
+                    pollCount++;
+                    if (pollCount > maxPolls) {
+                        clearInterval(interval);
+                        btn.disabled = false;
+                        btn.textContent = 'Generate Bundle';
+                        document.getElementById('buildStatus').textContent = 'Timed out';
+                        document.getElementById('buildProgressText').textContent = 'Build timed out after 5 minutes.';
+                        return;
+                    }
+
+                    try {
+                        const sr = await fetch('/api/bundles/status/' + buildId);
+                        const st = await sr.json();
+
+                        document.getElementById('progressFill').style.width = st.progress + '%';
+                        document.getElementById('buildProgressText').textContent =
+                            'Progress: ' + st.progress + '%';
+
+                        if (st.status === 'completed') {
+                            clearInterval(interval);
+                            document.getElementById('buildStatus').textContent = 'Completed';
+                            document.getElementById('buildProgressText').textContent = 'Build completed successfully.';
+                            document.getElementById('progressFill').style.width = '100%';
+
+                            progressSec.classList.remove('active');
+                            progressSec.style.display = 'none';
+
+                            document.getElementById('result').classList.add('active');
+                            document.getElementById('result').style.display = 'block';
+                            document.getElementById('bundleIdResult').textContent = st.bundleId;
+                            document.getElementById('downloadLink').href = st.downloadUrl;
+
+                            btn.disabled = false;
+                            btn.textContent = 'Generate Bundle';
+                        } else if (st.status === 'failed') {
+                            clearInterval(interval);
+                            document.getElementById('buildStatus').textContent = 'Failed';
+                            document.getElementById('buildProgressText').textContent = 'Build failed.';
+
+                            progressSec.classList.remove('active');
+                            progressSec.style.display = 'none';
+
+                            document.getElementById('buildErrorMessage').textContent = st.error || 'Unknown error';
+                            document.getElementById('buildError').classList.add('active');
+                            document.getElementById('buildError').style.display = 'block';
+
+                            btn.disabled = false;
+                            btn.textContent = 'Generate Bundle';
+                        }
+                    } catch (err) {
+                        clearInterval(interval);
+                        btn.disabled = false;
+                        btn.textContent = 'Generate Bundle';
+                        alert('Status check failed: ' + err.message);
+                    }
+                }, 1000);
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = 'Generate Bundle';
+                progressSec.classList.remove('active');
+                progressSec.style.display = 'none';
+                alert('Error: ' + err.message);
+            }
+        }
     </script>
-    </div>
-  </div>
 </body>
 </html>

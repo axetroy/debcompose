@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "node:path";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
+import { open } from 'node:fs/promises';
 import { BundleBuilder } from "./services/BundleBuilder.js";
 import { ConsoleLogger } from "./logger/index.js";
 
@@ -12,6 +13,28 @@ const bundleBuilder = new BundleBuilder();
 const app = express();
 
 const buildStatuses = new Map();
+const BUILD_STATUS_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_BUILD_STATUSES = 1000;
+
+function scheduleBuildCleanup(buildId) {
+  setTimeout(() => {
+    const entry = buildStatuses.get(buildId);
+    if (entry && (entry.status === 'completed' || entry.status === 'failed')) {
+      buildStatuses.delete(buildId);
+      logger.debug(`Evicted build status: ${buildId}`);
+    }
+  }, BUILD_STATUS_TTL);
+}
+
+function addBuildStatus(buildId, entry) {
+  // Evict oldest entry if at capacity
+  if (buildStatuses.size >= MAX_BUILD_STATUSES) {
+    const oldestKey = buildStatuses.keys().next().value;
+    buildStatuses.delete(oldestKey);
+    logger.debug(`Evicted oldest build status: ${oldestKey}`);
+  }
+  buildStatuses.set(buildId, entry);
+}
 
 // Read environment variables for default configuration
 const envConfig = {
@@ -45,7 +68,9 @@ const storage = multer.diskStorage({
     }
   },
   filename: (req, file, cb) => {
-    const uniqueName = crypto.randomBytes(8).toString('hex') + '_' + file.originalname;
+    // Strip path separators to prevent filename injection
+    const safeName = path.basename(file.originalname);
+    const uniqueName = crypto.randomBytes(8).toString('hex') + '_' + safeName;
     cb(null, uniqueName);
   },
 });
@@ -64,6 +89,24 @@ const upload = multer({
     }
   },
 });
+
+// Deb files are ar archives starting with the magic bytes !<arch>\n
+const DEB_MAGIC = Buffer.from('!<arch>\n');
+
+async function isValidDebFile(filePath) {
+  try {
+    const handle = await open(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(8);
+      const { bytesRead } = await handle.read(buf, 0, 8, 0);
+      return bytesRead >= 8 && buf.slice(0, 7).equals(DEB_MAGIC);
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return false;
+  }
+}
 
 app.use(express.json());
 app.use(express.static("src/public"));
@@ -152,6 +195,15 @@ app.post("/api/packages/upload", upload.single("package"), async (req, res) => {
     logger.warn('Upload failed: no file provided');
     return res.status(400).json({ error: 'No file uploaded' });
   }
+
+  // Validate deb magic bytes
+  const valid = await isValidDebFile(req.file.path);
+  if (!valid) {
+    logger.warn(`Upload rejected: file is not a valid deb archive: ${req.file.originalname}`);
+    await fs.unlink(req.file.path).catch(() => {});
+    return res.status(400).json({ error: 'File is not a valid .deb package' });
+  }
+
   logger.info(`File uploaded: ${req.file.originalname}`);
   res.json({
     message: 'File uploaded successfully',
@@ -161,7 +213,7 @@ app.post("/api/packages/upload", upload.single("package"), async (req, res) => {
 });
 
 app.post("/api/bundles/generate", async (req, res) => {
-  const { packages, order, config, sessionId, onInstallError } = req.body;
+  const { packages, order, config, sessionId } = req.body;
 
   if (!packages || !order) {
     logger.warn('Generate bundle failed: missing packages or order');
@@ -181,7 +233,7 @@ app.post("/api/bundles/generate", async (req, res) => {
     createdAt: new Date().toISOString(),
     completedAt: null,
   };
-  buildStatuses.set(buildId, statusEntry);
+  addBuildStatus(buildId, statusEntry);
 
   logger.info(`Queued bundle generation: ${buildId} (${packages.length} packages, session: ${effectiveSessionId})`);
 
@@ -209,7 +261,7 @@ app.post("/api/bundles/generate", async (req, res) => {
           section: config?.section || envConfig.section,
           priority: config?.priority || envConfig.priority,
           license: config?.license || envConfig.license,
-          onInstallError: onInstallError || 'stop',
+          onInstallError: config?.onInstallError || 'stop',
         },
       });
 
@@ -218,7 +270,9 @@ app.post("/api/bundles/generate", async (req, res) => {
       if (!result.success) {
         statusEntry.status = 'failed';
         statusEntry.error = result.error;
+        statusEntry.completedAt = new Date().toISOString();
         logger.error('Bundle generation failed:', result.error);
+        scheduleBuildCleanup(buildId);
         return;
       }
 
@@ -229,10 +283,13 @@ app.post("/api/bundles/generate", async (req, res) => {
       statusEntry.completedAt = new Date().toISOString();
 
       logger.info(`Bundle generated: ${result.bundleId}`);
+      scheduleBuildCleanup(buildId);
     } catch (error) {
       statusEntry.status = 'failed';
       statusEntry.error = error.message || 'Unknown error';
+      statusEntry.completedAt = new Date().toISOString();
       logger.error('Bundle generation error:', error);
+      scheduleBuildCleanup(buildId);
     } finally {
       // Cleanup session upload directory recursively
       const sessionDir = path.join("uploads", effectiveSessionId);
@@ -273,14 +330,25 @@ app.get('/api/bundles/status/:buildId', (req, res) => {
 
 app.get("/api/bundles/:id", async (req, res) => {
   const { id } = req.params;
-  const filePath = path.join("dist", id);
+  const distPath = path.resolve("dist");
+  const filePath = path.resolve(distPath, id);
+
+  // Prevent path traversal — ensure the resolved path is within dist/
+  if (!filePath.startsWith(distPath + path.sep)) {
+    return res.status(404).json({ error: "Bundle not found" });
+  }
+
   try {
     await fs.access(filePath);
+    const stats = await fs.stat(filePath);
+    if (!stats.isFile()) {
+      return res.status(404).json({ error: "Bundle not found" });
+    }
     res.download(filePath, async () => {
       await fs.unlink(filePath);
     });
   } catch {
-    res.status(404).send("Bundle not found");
+    res.status(404).json({ error: "Bundle not found" });
   }
 });
 
