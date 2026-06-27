@@ -53,4 +53,69 @@ describe('readManifest', () => {
       (err) => err instanceof DebComposeError && err.code === 'INVALID_INPUT',
     );
   });
+
+  it('throws DebComposeError with path in error details for missing file', async () => {
+    const missingPath = join(tmpDir, 'nonexistent.json');
+    try {
+      await readManifest(missingPath);
+      assert.fail('Should have thrown');
+    } catch (err) {
+      assert.ok(err instanceof DebComposeError);
+      assert.ok(err.details.path.includes('nonexistent.json'));
+    }
+  });
+
+  it('throws DebComposeError with path in error details for invalid JSON', async () => {
+    const filePath = join(tmpDir, 'invalid2.json');
+    await writeFile(filePath, 'not { json', 'utf-8');
+
+    try {
+      await readManifest(filePath);
+      assert.fail('Should have thrown');
+    } catch (err) {
+      assert.ok(err instanceof DebComposeError);
+      assert.ok(err.details.path.includes('invalid2.json'));
+    }
+  });
+
+  it('throws DebComposeError with errors array for schema violation', async () => {
+    const filePath = join(tmpDir, 'bad-schema2.json');
+    await writeFile(filePath, JSON.stringify({ packages: [] }), 'utf-8');
+
+    try {
+      await readManifest(filePath);
+      assert.fail('Should have thrown');
+    } catch (err) {
+      assert.ok(err instanceof DebComposeError);
+      assert.ok(Array.isArray(err.details.errors));
+      assert.ok(err.details.errors.length > 0);
+    }
+  });
+
+  it('reads manifest with multiple packages', async () => {
+    const manifest = {
+      version: '2.0.0',
+      packages: [
+        { name: 'runtime', file: 'runtime.deb' },
+        { name: 'server', file: 'server.deb' },
+        { name: 'client', file: 'client.deb' },
+      ],
+    };
+    const filePath = join(tmpDir, 'multi.json');
+    await writeFile(filePath, JSON.stringify(manifest), 'utf-8');
+
+    const result = await readManifest(filePath);
+    assert.equal(result.version, '2.0.0');
+    assert.equal(result.packages.length, 3);
+  });
+
+  it('handles manifest with empty whitespace-only file', async () => {
+    const filePath = join(tmpDir, 'whitespace.json');
+    await writeFile(filePath, '   \n  \t  \n', 'utf-8');
+
+    await assert.rejects(
+      () => readManifest(filePath),
+      (err) => err instanceof DebComposeError && err.code === 'INVALID_INPUT',
+    );
+  });
 });
