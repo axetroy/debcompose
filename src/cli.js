@@ -103,9 +103,9 @@ function parseArgs(args) {
   return options;
 }
 
-export async function runBuildCommand() {
-  const args = process.argv.slice(2);
-  const options = parseArgs(args);
+export async function runBuildCommand(args) {
+  const parsedArgs = args || process.argv.slice(2);
+  const options = parseArgs(parsedArgs);
   
   if (options.help) {
     showBuildHelp();
@@ -147,7 +147,7 @@ export async function runBuildCommand() {
   }
 }
 
-export async function runServeCommand() {
+export async function runServeCommand(_args) {
   const { startServer } = await import('./server.js');
   startServer();
 }
@@ -163,13 +163,13 @@ const DEFAULT_COMMAND = 'build';
 async function handleCommand(command, userArgs) {
   const handler = commandHandlers[command];
   if (handler) {
-    await handler();
+    await handler(userArgs);
     return;
   }
   
   if (!command.startsWith('-')) {
-    process.argv.splice(2, 0, DEFAULT_COMMAND);
-    await runBuildCommand();
+    userArgs.unshift(DEFAULT_COMMAND);
+    await runBuildCommand(userArgs);
     return;
   }
   
