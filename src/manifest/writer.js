@@ -25,9 +25,9 @@ export async function writeManifest(manifest, outputDir) {
  * @returns {Promise<import('./schema.js').Manifest>}
  * @throws {DebComposeError} No .deb files found, or dpkg-deb failure
  */
-export async function generateManifest(debDir, bundleVersion) {
+export async function generateManifest(debDir, bundleVersion, order) {
   const entries = await readdir(debDir);
-  const debFiles = entries
+  let debFiles = entries
     .filter(f => extname(f).toLowerCase() === '.deb')
     .sort();
 
@@ -35,6 +35,47 @@ export async function generateManifest(debDir, bundleVersion) {
     throw new DebComposeError(ErrorCode.INVALID_INPUT, 'no .deb files found in directory', {
       path: debDir,
     });
+  }
+
+  // If order is provided, reorder debFiles accordingly and validate
+  if (order && order.length > 0) {
+    const fileByName = {};
+    const nameByFile = {};
+    const errors = [];
+
+    for (const file of debFiles) {
+      const filePath = join(debDir, file);
+      try {
+        const name = await getPackageName(filePath);
+        fileByName[name] = file;
+        nameByFile[file] = name;
+      } catch (err) {
+        errors.push({ file, message: err.message });
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new DebComposeError(ErrorCode.BUILD_FAILED, 'failed to read some .deb files', {
+        path: debDir,
+        errors,
+      });
+    }
+
+    const orderedFiles = [];
+    for (const name of order) {
+      if (fileByName[name]) {
+        orderedFiles.push(fileByName[name]);
+      }
+    }
+
+    // Append any files not in the order list at the end
+    for (const file of debFiles) {
+      if (!orderedFiles.includes(file)) {
+        orderedFiles.push(file);
+      }
+    }
+
+    debFiles = orderedFiles;
   }
 
   const packages = [];

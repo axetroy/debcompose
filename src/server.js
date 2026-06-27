@@ -69,6 +69,71 @@ app.get("/api/config/defaults", (req, res) => {
   res.json(envConfig);
 });
 
+app.post("/api/bundles/preview", async (req, res) => {
+  const { packages, order, config, sessionId } = req.body;
+
+  if (!packages || !order) {
+    return res.status(400).json({ error: "Missing packages or order" });
+  }
+
+  const effectiveSessionId = sessionId || 'default';
+  const uploadDir = path.join("uploads", effectiveSessionId);
+
+  try {
+    await fs.access(uploadDir);
+  } catch {
+    return res.status(400).json({ error: "Upload directory not found, please upload packages first" });
+  }
+
+  const previewPackages = [];
+  for (const pkg of order) {
+    const pkgInfo = packages.find((p) => p.name === pkg);
+    if (pkgInfo?.path) {
+      const fullPath = path.join("uploads", effectiveSessionId, pkgInfo.id || pkgInfo.path);
+      try {
+        await fs.access(fullPath);
+        previewPackages.push({
+          name: path.basename(pkgInfo.name || pkg, '.deb'),
+          file: path.basename(fullPath),
+        });
+      } catch {
+        // skip
+      }
+    }
+  }
+
+  const manifest = {
+    version: config?.version || envConfig.version,
+    packages: previewPackages,
+  };
+
+  const structure = [
+    { path: "DEBIAN/", type: "dir" },
+    { path: "DEBIAN/control", type: "file", size: "auto-generated" },
+    { path: "DEBIAN/postinst", type: "file", size: "auto-generated" },
+    { path: "DEBIAN/postrm", type: "file", size: "auto-generated" },
+    { path: "DEBIAN/md5sums", type: "file", size: "auto-generated" },
+    { path: "opt/", type: "dir" },
+    { path: "opt/bundle/", type: "dir" },
+    ...previewPackages.map(p => ({ path: `opt/bundle/${p.file}`, type: "file" })),
+    { path: "opt/bundle/manifest.json", type: "file", size: "auto-generated" },
+  ];
+
+  res.json({
+    manifest,
+    structure,
+    packages: previewPackages,
+    config: {
+      name: config?.name || envConfig.name,
+      version: config?.version || envConfig.version,
+      arch: config?.arch || envConfig.arch,
+      maintainer: config?.maintainer || envConfig.maintainer,
+      section: config?.section || envConfig.section,
+      priority: config?.priority || envConfig.priority,
+    },
+  });
+});
+
 app.post("/api/packages/upload", upload.single("package"), async (req, res) => {
   if (!req.file) {
     logger.warn('Upload failed: no file provided');
@@ -120,14 +185,18 @@ app.post("/api/bundles/generate", async (req, res) => {
         })),
         order,
         outputDir: "dist",
-        version: config?.version || envConfig.version,
-        package: config?.name || envConfig.name,
-        architecture: config?.arch || envConfig.arch,
-        maintainer: config?.maintainer || envConfig.maintainer,
-        description: config?.description || envConfig.description,
-        section: config?.section || envConfig.section,
-        priority: config?.priority || envConfig.priority,
-        license: config?.license || envConfig.license,
+        config: {
+          name: config?.name || envConfig.name,
+          package: config?.name || envConfig.name,
+          version: config?.version || envConfig.version,
+          arch: config?.arch || envConfig.arch,
+          architecture: config?.arch || envConfig.arch,
+          maintainer: config?.maintainer || envConfig.maintainer,
+          description: config?.description || envConfig.description,
+          section: config?.section || envConfig.section,
+          priority: config?.priority || envConfig.priority,
+          license: config?.license || envConfig.license,
+        },
       });
 
       statusEntry.progress = 75;

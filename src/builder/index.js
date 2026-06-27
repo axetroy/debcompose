@@ -110,6 +110,7 @@ export async function buildBundle(options) {
     architecture,
     maintainer,
     description,
+    order,
   } = options;
 
   if (!debDir) {
@@ -121,7 +122,7 @@ export async function buildBundle(options) {
     throw new DebComposeError(ErrorCode.BUILD_FAILED, 'dpkg-deb not found; install dpkg-dev first');
   }
 
-  const manifest = await generateManifest(debDir, version || '1.0.0');
+  const manifest = await generateManifest(debDir, version || '1.0.0', order);
 
   const tmpDir = await mkdtemp(join(tmpdir(), 'debcompose-'));
 

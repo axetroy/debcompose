@@ -1,209 +1,153 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { writeControl } from '../control/index.js';
+import { writePostinst, writePostrm } from '../scripts/index.js';
+import { writeManifest } from '../manifest/index.js';
+import { getPackageName } from '../deb/info.js';
+import { checkDpkgDeb, buildDeb } from '../packager/index.js';
 
-const execAsync = promisify(exec);
+async function calculateInstalledSize(dir) {
+  const entries = await fs.readdir(dir);
+  let totalBytes = 0;
+  for (const entry of entries) {
+    if (path.extname(entry).toLowerCase() !== '.deb') continue;
+    const { size } = await fs.stat(path.join(dir, entry));
+    totalBytes += size;
+  }
+  return Math.ceil(totalBytes / 1024);
+}
+
+async function generateMd5sums(buildDir) {
+  const lines = [];
+  async function walk(dir, relativePrefix) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath, path.join(relativePrefix, entry.name));
+      } else {
+        const content = await fs.readFile(fullPath);
+        const hex = crypto.createHash('md5').update(content).digest('hex');
+        lines.push(`${hex}  ${path.join(relativePrefix, entry.name)}`);
+      }
+    }
+  }
+  const topEntries = await fs.readdir(buildDir, { withFileTypes: true });
+  for (const entry of topEntries) {
+    if (entry.name === 'DEBIAN') continue;
+    const fullPath = path.join(buildDir, entry.name);
+    if (entry.isDirectory()) {
+      await walk(fullPath, entry.name);
+    } else {
+      const content = await fs.readFile(fullPath);
+      const hex = crypto.createHash('md5').update(content).digest('hex');
+      lines.push(`${hex}  ${entry.name}`);
+    }
+  }
+  return lines.sort().join('\n') + '\n';
+}
 
 export class BundleBuilder {
   constructor(config = {}) {
     this.config = config;
   }
 
-  /**
-   * Generates a Debian bundle package.
-   * @param {Object} options
-   * @param {Array} options.packages - List of deb files to include with name and path.
-   * @param {string[]} options.order - The installation order of packages.
-   * @param {string} options.outputDir - Where to save the generated bundle.
-   * @param {Object} options.config - Runtime configuration overriding constructor config.
-   */
-  async build({ packages, order, outputDir = "dist", config = {} }) {
+  async build({ packages, order, outputDir = 'dist', config = {} }) {
     const cfg = { ...this.config, ...config };
     const bundleRoot = path.join(outputDir, `bundle_${Date.now()}`);
-    const debDir = path.join(bundleRoot, "opt", "bundle");
-    const debianDir = path.join(bundleRoot, "DEBIAN");
+    const debDir = path.join(bundleRoot, 'opt', 'bundle');
+    const debianDir = path.join(bundleRoot, 'DEBIAN');
 
     await fs.mkdir(debDir, { recursive: true });
     await fs.mkdir(debianDir, { recursive: true });
 
-    // Copy deb files in specified order
+    // Copy deb files in specified order and collect package info
+    const manifestPackages = [];
+    const debFilesInBundle = [];
+    const nameToFile = {};
+
     for (const pkg of order) {
       const pkgInfo = packages.find((p) => p.name === pkg);
       if (pkgInfo?.path && (await this._exists(pkgInfo.path))) {
-        await fs.copyFile(
-          pkgInfo.path,
-          path.join(debDir, path.basename(pkgInfo.path)),
-        );
+        const destName = path.basename(pkgInfo.path);
+        await fs.copyFile(pkgInfo.path, path.join(debDir, destName));
+        debFilesInBundle.push(destName);
+        try {
+          const pkgName = await getPackageName(path.join(debDir, destName));
+          manifestPackages.push({ name: pkgName, file: destName });
+          nameToFile[pkgName] = destName;
+        } catch {
+          // Fallback: use filename without extension as package name
+          const fallbackName = path.basename(destName, '.deb');
+          manifestPackages.push({ name: fallbackName, file: destName });
+          nameToFile[fallbackName] = destName;
+        }
       }
     }
 
-    // Generate manifest.json
+    // If no packages were matched, try copying from debDir listing
+    if (manifestPackages.length === 0) {
+      const entries = await fs.readdir(debDir);
+      for (const entry of entries.filter(f => f.endsWith('.deb')).sort()) {
+        try {
+          const pkgName = await getPackageName(path.join(debDir, entry));
+          manifestPackages.push({ name: pkgName, file: entry });
+          nameToFile[pkgName] = entry;
+        } catch {
+          manifestPackages.push({ name: path.basename(entry, '.deb'), file: entry });
+          nameToFile[path.basename(entry, '.deb')] = entry;
+        }
+      }
+    }
+
+    // Generate manifest.json in opt/bundle/ (payload, accessible at runtime)
     const manifest = {
-      version: cfg.version || "1.0.0",
-      packages: order.map((name) => {
-        const pkgInfo = packages.find((p) => p.name === name);
-        return {
-          name,
-          file: pkgInfo ? path.basename(pkgInfo.path) : `${name}.deb`,
-        };
-      }),
+      version: cfg.version || '1.0.0',
+      packages: manifestPackages,
     };
-    await fs.writeFile(
-      path.join(debianDir, "manifest.json"),
-      JSON.stringify(manifest, null, 2),
-    );
+    await writeManifest(manifest, debDir);
 
-    // Generate control file
-    const control = this._generateControl(cfg);
-    await fs.writeFile(path.join(debianDir, "control"), control);
+    // Generate control file in DEBIAN/ (metadata)
+    const installedSize = await calculateInstalledSize(debDir);
+    await writeControl(debianDir, {
+      package: cfg.package || cfg.name || 'debcompose-bundle',
+      version: cfg.version || '1.0.0',
+      architecture: cfg.architecture || cfg.arch || 'amd64',
+      maintainer: cfg.maintainer || 'Unknown <unknown>',
+      description: cfg.description || 'Bundle installer\n Auto-generated by debcompose.',
+      section: cfg.section || 'misc',
+      priority: cfg.priority || 'optional',
+      license: cfg.license || undefined,
+      installedSize,
+    });
 
-    // Generate postinst/postrm scripts
-    await this._generatePostinst(debianDir, debDir, cfg);
-    await this._generatePostrm(debianDir, cfg);
+    // Generate postinst/postrm using production templates
+    await writePostinst(debianDir, manifest);
+    await writePostrm(debianDir, manifest);
+
+    // Generate md5sums
+    const md5sums = await generateMd5sums(bundleRoot);
+    await fs.writeFile(path.join(debianDir, 'md5sums'), md5sums, 'utf-8');
 
     // Build the package
+    const dpkgAvailable = await checkDpkgDeb();
+    if (!dpkgAvailable) {
+      return { success: false, error: 'dpkg-deb not found' };
+    }
+
     try {
-      await execAsync(`dpkg-deb --build ${bundleRoot}`);
+      const outputFilename = `${cfg.package || cfg.name || 'debcompose-bundle'}_${cfg.version || '1.0.0'}_${cfg.architecture || cfg.arch || 'amd64'}.deb`;
+      const outputPath = path.join(outputDir, outputFilename);
+      await buildDeb(bundleRoot, outputPath);
       return {
         success: true,
-        bundlePath: `${bundleRoot}.deb`,
-        bundleId: path.basename(`${bundleRoot}.deb`),
+        bundlePath: outputPath,
+        bundleId: path.basename(outputPath),
       };
     } catch (e) {
-      return { success: false, error: "dpkg-deb not found or build failed" };
+      return { success: false, error: 'dpkg-deb build failed' };
     }
-  }
-
-  _generateControl(cfg) {
-    const fields = [
-      `Package: ${cfg.name || "debcompose-bundle"}`,
-      `Version: ${cfg.version || "1.0.0"}`,
-      `Section: ${cfg.section || "misc"}`,
-      `Priority: ${cfg.priority || "optional"}`,
-      `Architecture: ${cfg.arch || "amd64"}`,
-      `Maintainer: ${cfg.maintainer || "Unknown <unknown>"}`,
-      `Description: ${cfg.description || "Aggregated deb bundle"}`,
-    ];
-    if (cfg.license) {
-      fields.push(`License: ${cfg.license}`);
-    }
-    return fields.join("\n") + "\n";
-  }
-
-  async _generatePostinst(debianDir, debDir, cfg) {
-    const script = `#!/bin/bash
-set -e
-
-LOG_FILE="/var/log/${cfg.name || "debcompose-bundle"}.log"
-BUNDLE_DIR="${debDir}"
-MANIFEST_FILE="${debianDir}/manifest.json"
-INSTALLED_LIST=""
-
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
-}
-
-rollback() {
-    log "ERROR: Installation failed. Rolling back installed packages..."
-    for pkg in $(echo "$INSTALLED_LIST" | tac); do
-        log "Rolling back: $pkg"
-        dpkg -r "$pkg" >> "$LOG_FILE" 2>&1 || true
-    done
-    log "Rollback completed"
-    exit 1
-}
-
-log "Starting bundle installation: ${cfg.name || "debcompose-bundle"} version ${cfg.version || "1.0.0"}"
-
-if [ ! -f "$MANIFEST_FILE" ]; then
-    log "ERROR: Manifest file not found at $MANIFEST_FILE"
-    exit 1
-fi
-
-if ! command -v jq &> /dev/null; then
-    log "ERROR: jq is required but not installed"
-    exit 1
-fi
-
-PACKAGES=$(jq -r '.packages[].name' "$MANIFEST_FILE" 2>/dev/null)
-if [ -z "$PACKAGES" ]; then
-    log "ERROR: No packages found in manifest"
-    exit 1
-fi
-
-INSTALLED=""
-for pkg in $PACKAGES; do
-    DEB_FILE=$(jq -r --arg name "$pkg" '.packages[] | select(.name == $name) | .file' "$MANIFEST_FILE")
-    if [ -z "$DEB_FILE" ] || [ "$DEB_FILE" = "null" ]; then
-        log "WARNING: No deb file found for package $pkg, skipping"
-        continue
-    fi
-    
-    DEB_PATH="$BUNDLE_DIR/$DEB_FILE"
-    if [ ! -f "$DEB_PATH" ]; then
-        log "ERROR: Deb file not found: $DEB_PATH"
-        rollback
-    fi
-    
-    log "Installing package: $pkg ($DEB_FILE)"
-    if dpkg -i "$DEB_PATH" >> "$LOG_FILE" 2>&1; then
-        log "Successfully installed: $pkg"
-        INSTALLED="$INSTALLED $pkg"
-        INSTALLED_LIST="$INSTALLED"
-    else
-        log "ERROR: Failed to install $pkg"
-        rollback
-    fi
-done
-
-log "Bundle installation completed successfully"
-exit 0
-`;
-
-    await fs.writeFile(path.join(debianDir, "postinst"), script);
-    await fs.chmod(path.join(debianDir, "postinst"), "755");
-  }
-
-  async _generatePostrm(debianDir, cfg) {
-    const script = `#!/bin/bash
-set -e
-
-LOG_FILE="/var/log/${cfg.name || "debcompose-bundle"}.log"
-MANIFEST_FILE="${debianDir}/manifest.json"
-
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
-}
-
-log "Starting bundle removal: ${cfg.name || "debcompose-bundle"}"
-
-if [ ! -f "$MANIFEST_FILE" ]; then
-    log "WARNING: Manifest file not found at $MANIFEST_FILE, cannot determine packages to remove"
-    exit 0
-fi
-
-PACKAGES=$(jq -r '.packages[].name' "$MANIFEST_FILE" 2>/dev/null | tac)
-if [ -z "$PACKAGES" ]; then
-    log "WARNING: No packages found in manifest"
-    exit 0
-fi
-
-for pkg in $PACKAGES; do
-    log "Removing package: $pkg"
-    if dpkg -r "$pkg" >> "$LOG_FILE" 2>&1; then
-        log "Successfully removed: $pkg"
-    else
-        log "WARNING: Failed to remove $pkg (may already be removed)"
-    fi
-done
-
-log "Bundle removal completed"
-exit 0
-`;
-
-    await fs.writeFile(path.join(debianDir, "postrm"), script);
-    await fs.chmod(path.join(debianDir, "postrm"), "755");
   }
 
   async _exists(filePath) {
