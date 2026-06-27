@@ -44,9 +44,13 @@ app.get("/api/config/defaults", (req, res) => {
 });
 
 app.post("/api/packages/upload", upload.single("package"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  if (!req.file) {
+    logger.warn('Upload failed: no file provided');
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  logger.info(`File uploaded: ${req.file.originalname}`);
   res.json({
-    message: "File uploaded successfully",
+    message: 'File uploaded successfully',
     filename: req.file.filename,
     originalName: req.file.originalname,
   });
@@ -56,9 +60,11 @@ app.post("/api/bundles/generate", async (req, res) => {
   const { packages, order, config } = req.body;
 
   if (!packages || !order) {
+    logger.warn('Generate bundle failed: missing packages or order');
     return res.status(400).json({ error: "Missing packages or order" });
   }
 
+  logger.info(`Generating bundle with ${packages.length} packages`);
   try {
     const result = await bundleBuilder.build({
       packages: packages.map((p) => ({
@@ -78,18 +84,22 @@ app.post("/api/bundles/generate", async (req, res) => {
     });
 
     if (!result.success) {
+      logger.error('Bundle generation failed:', result.error);
       return res.status(500).json({ error: result.error });
     }
 
+    logger.info(`Bundle generated: ${result.bundleId}`);
     res.json({
       message: "Bundle generated successfully",
       bundleId: result.bundleId,
       downloadUrl: `/api/bundles/${result.bundleId}`,
     });
   } catch (error) {
+    logger.error('Bundle generation error:', error);
     res.status(500).json({ error: "Failed to generate bundle" });
   } finally {
     // Cleanup only the uploaded files that were used in this bundle
+    logger.debug('Cleaning up uploaded files');
     const uploadPromises = packages.map(
       (p) => fs.unlink(path.join("uploads", p.id)).catch(() => {}), // Ignore if file already deleted
     );
@@ -120,6 +130,6 @@ app.get("/api/bundles/:id", async (req, res) => {
 
 export function startServer() {
   app.listen(port, () => {
-    console.log(`DebCompose HTTP Server running at http://localhost:${port}`);
+    logger.info(`DebCompose HTTP Server running at http://localhost:${port}`);
   });
 }
