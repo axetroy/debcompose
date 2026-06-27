@@ -111,14 +111,6 @@ awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_
 
 # Launch sub-package installation in background to avoid dpkg lock contention
 {
-    if command -v fuser >/dev/null 2>&1; then
-        MAX_WAIT=30 WAIT=0
-        while [ $WAIT -lt $MAX_WAIT ] && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do
-            sleep 1; WAIT=$((WAIT + 1))
-        done
-        sleep 2
-    fi
-
     while IFS='|' read -r pkg_name pkg_file; do
         pkg_path="$DEB_DIR/$pkg_file"
         if [ ! -f "$pkg_path" ]; then
@@ -127,7 +119,7 @@ awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_
             exit 1
         fi
         log "Installing: $pkg_file"
-        RETRY=0 MAX_RETRY=3
+        RETRY=0 MAX_RETRY=15
         while [ $RETRY -lt $MAX_RETRY ]; do
             if dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
                 log "ExitCode=0 Installed: $pkg_file"${hasRollback ? `
@@ -200,21 +192,19 @@ rm -f "$PACKAGE_LIST_FILE"
 
 # Launch sub-package removal in background to avoid dpkg lock contention
 {
-    if command -v fuser >/dev/null 2>&1; then
-        MAX_WAIT=30 WAIT=0
-        while [ $WAIT -lt $MAX_WAIT ] && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do
-            sleep 1; WAIT=$((WAIT + 1))
-        done
-        sleep 2
-    fi
-
     for name in $PACKAGE_NAMES; do
         log "Removing: $name"
-        if dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
-            log "ExitCode=0 Removed: $name"
-        else
-            exit_code=$?
-            log "ExitCode=$exit_code WARN: Failed to remove: $name (may not be installed)"
+        RETRY=0 MAX_RETRY=10
+        while [ $RETRY -lt $MAX_RETRY ]; do
+            if dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
+                log "ExitCode=0 Removed: $name"
+                break
+            fi
+            exit_code=$?; RETRY=$((RETRY + 1))
+            [ $RETRY -lt $MAX_RETRY ] && sleep 2
+        done
+        if [ $RETRY -ge $MAX_RETRY ]; then
+            log "ExitCode=$exit_code WARN: Failed to remove after $MAX_RETRY retries: $name (may not be installed)"
         fi
     done
 
