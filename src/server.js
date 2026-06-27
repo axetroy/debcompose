@@ -3,8 +3,10 @@ import multer from "multer";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { BundleBuilder } from "./services/BundleBuilder.js";
+import { ConsoleLogger } from "./logger/index.js";
 
 const port = process.env.DEB_COMPOSE_PORT || 3000;
+const logger = new ConsoleLogger(process.env.DEB_COMPOSE_LOG_LEVEL || "info");
 const bundleBuilder = new BundleBuilder();
 const app = express();
 
