@@ -250,13 +250,7 @@ Manifest 用于：
 
 卸载：
 
-```text
-读取 manifest
-
-↓
-
-根据 package name 卸载
-```
+从持久化包列表读取（参见第 6 章卸载流程），该列表由 postinst 安装时根据 manifest 生成。
 
 Node Builder 自动生成 Manifest。
 
@@ -316,7 +310,7 @@ dpkg -i bundle.deb 返回
 这种情况下的恢复方式：
 
 1. 用户执行 `dpkg -r <bundle-package-name>` 触发卸载
-2. postrm 读取 `packages.bak`（如果安装流程已将其重命名）或 `packages` 文件
+2. postrm 读取 `packages.bak`（如果之前已将其重命名）或 `packages` 文件
 3. postrm 尝试卸载列表中的所有子包
 4. 对未安装的包，`dpkg -r` 会输出警告，但 postrm 不会因此失败（warn-only）
 
@@ -620,7 +614,8 @@ Builder 通过 `onInstallError` 选项控制策略：
 /var/lib/<bundle-package-name>/packages
 ```
 
-供 postrm 卸载时读取。该文件在卸载完成后删除。
+卸载时，postrm 将该文件重命名为 `packages.bak` 后读取，卸载完成后删除 `packages.bak`。
+若卸载中途崩溃，残留的 `.bak` 文件可在下次卸载时自动恢复并继续。
 
 ---
 
@@ -765,11 +760,38 @@ Body:
 {
     "packages": [...],
     "order": [...],
-    "sessionId": "session_xxx"
+    "sessionId": "session_xxx",
+    "config": {
+        "version": "2.0.0",
+        "section": "admin"
+    }
 }
 ```
 
-返回生成的 manifest 和目录树预览（不含实际构建）。
+返回生成的 manifest 和目录树预览（不含实际构建）：
+
+```json
+{
+    "manifest": {
+        "version": "2.0.0",
+        "packages": [...]
+    },
+    "packages": [...],
+    "config": {
+        "version": "2.0.0",
+        "arch": "amd64",
+        "section": "admin",
+        "priority": "optional"
+    },
+    "structure": [
+        {"path": "DEBIAN", "type": "dir"},
+        {"path": "DEBIAN/control", "type": "file"},
+        {"path": "opt/bundle", "type": "dir"},
+        {"path": "opt/bundle/manifest.json", "type": "file"},
+        {"path": "opt/bundle/runtime.deb", "type": "file"}
+    ]
+}
+```
 
 ### 12.2.5 下载 Bundle
 
