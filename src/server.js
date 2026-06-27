@@ -10,6 +10,8 @@ const logger = new ConsoleLogger(process.env.DEB_COMPOSE_LOG_LEVEL || "info");
 const bundleBuilder = new BundleBuilder();
 const app = express();
 
+const buildStatuses = new Map();
+
 // Read environment variables for default configuration
 const envConfig = {
   version: process.env.DEB_COMPOSE_VERSION || "1.0.0",
@@ -64,55 +66,101 @@ app.post("/api/bundles/generate", async (req, res) => {
     return res.status(400).json({ error: "Missing packages or order" });
   }
 
-  logger.info(`Generating bundle with ${packages.length} packages`);
-  try {
-    const result = await bundleBuilder.build({
-      packages: packages.map((p) => ({
-        name: p.name,
-        path: path.join("uploads", p.id),
-      })),
-      order,
-      outputDir: "dist",
-      version: config?.version || envConfig.version,
-      package: config?.name || envConfig.name,
-      architecture: config?.arch || envConfig.arch,
-      maintainer: config?.maintainer || envConfig.maintainer,
-      description: config?.description || envConfig.description,
-      section: config?.section || envConfig.section,
-      priority: config?.priority || envConfig.priority,
-      license: config?.license || envConfig.license,
-    });
+  const bundleId = `bundle_${Date.now()}`;
+  const crypto = await import('node:crypto');
+  const buildId = crypto.randomBytes(8).toString('hex');
 
-    if (!result.success) {
-      logger.error('Bundle generation failed:', result.error);
-      return res.status(500).json({ error: result.error });
-    }
+  const statusEntry = {
+    buildId,
+    status: 'pending',
+    progress: 0,
+    error: null,
+    bundleId: null,
+    downloadUrl: null,
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+  };
+  buildStatuses.set(buildId, statusEntry);
 
-    logger.info(`Bundle generated: ${result.bundleId}`);
-    res.json({
-      message: "Bundle generated successfully",
-      bundleId: result.bundleId,
-      downloadUrl: `/api/bundles/${result.bundleId}`,
-    });
-  } catch (error) {
-    logger.error('Bundle generation error:', error);
-    res.status(500).json({ error: "Failed to generate bundle" });
-  } finally {
-    // Cleanup only the uploaded files that were used in this bundle
-    logger.debug('Cleaning up uploaded files');
-    const uploadPromises = packages.map(
-      (p) => fs.unlink(path.join("uploads", p.id)).catch(() => {}), // Ignore if file already deleted
-    );
-    await Promise.all(uploadPromises);
+  logger.info(`Queued bundle generation: ${buildId} (${packages.length} packages)`);
 
-    // Cleanup old bundles in dist
-    const distFiles = await fs.readdir("dist");
-    for (const file of distFiles) {
-      if (file !== result.bundleId) {
-        await fs.unlink(path.join("dist", file));
+  // Start build asynchronously
+  (async () => {
+    try {
+      statusEntry.status = 'building';
+      statusEntry.progress = 25;
+
+      const result = await bundleBuilder.build({
+        packages: packages.map((p) => ({
+          name: p.name,
+          path: path.join("uploads", p.id),
+        })),
+        order,
+        outputDir: "dist",
+        version: config?.version || envConfig.version,
+        package: config?.name || envConfig.name,
+        architecture: config?.arch || envConfig.arch,
+        maintainer: config?.maintainer || envConfig.maintainer,
+        description: config?.description || envConfig.description,
+        section: config?.section || envConfig.section,
+        priority: config?.priority || envConfig.priority,
+        license: config?.license || envConfig.license,
+      });
+
+      statusEntry.progress = 75;
+
+      if (!result.success) {
+        statusEntry.status = 'failed';
+        statusEntry.error = result.error;
+        logger.error('Bundle generation failed:', result.error);
+        return;
       }
+
+      statusEntry.status = 'completed';
+      statusEntry.progress = 100;
+      statusEntry.bundleId = result.bundleId;
+      statusEntry.downloadUrl = `/api/bundles/${result.bundleId}`;
+      statusEntry.completedAt = new Date().toISOString();
+
+      logger.info(`Bundle generated: ${result.bundleId}`);
+    } catch (error) {
+      statusEntry.status = 'failed';
+      statusEntry.error = error.message || 'Unknown error';
+      logger.error('Bundle generation error:', error);
+    } finally {
+      // Cleanup uploaded files
+      logger.debug('Cleaning up uploaded files');
+      const uploadPromises = packages.map(
+        (p) => fs.unlink(path.join("uploads", p.id)).catch(() => {}),
+      );
+      await Promise.all(uploadPromises);
     }
+  })();
+
+  res.json({
+    message: "Bundle generation queued",
+    buildId,
+    statusUrl: `/api/bundles/status/${buildId}`,
+  });
+});
+
+app.get('/api/bundles/status/:buildId', (req, res) => {
+  const { buildId } = req.params;
+  const entry = buildStatuses.get(buildId);
+
+  if (!entry) {
+    return res.status(404).json({ error: 'Build not found', status: 'not_found' });
   }
+
+  res.json({
+    status: entry.status,
+    progress: entry.progress,
+    error: entry.error,
+    bundleId: entry.bundleId,
+    downloadUrl: entry.downloadUrl,
+    createdAt: entry.createdAt,
+    completedAt: entry.completedAt,
+  });
 });
 
 app.get("/api/bundles/:id", async (req, res) => {
