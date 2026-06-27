@@ -161,7 +161,7 @@ app.post("/api/packages/upload", upload.single("package"), async (req, res) => {
 });
 
 app.post("/api/bundles/generate", async (req, res) => {
-  const { packages, order, config, sessionId } = req.body;
+  const { packages, order, config, sessionId, onInstallError } = req.body;
 
   if (!packages || !order) {
     logger.warn('Generate bundle failed: missing packages or order');
@@ -209,6 +209,7 @@ app.post("/api/bundles/generate", async (req, res) => {
           section: config?.section || envConfig.section,
           priority: config?.priority || envConfig.priority,
           license: config?.license || envConfig.license,
+          onInstallError: onInstallError || 'stop',
         },
       });
 
@@ -283,8 +284,10 @@ app.get("/api/bundles/:id", async (req, res) => {
   }
 });
 
-export function startServer() {
-  app.listen(port, () => {
-    logger.info(`DebCompose HTTP Server running at http://localhost:${port}`);
+export function startServer(customPort) {
+  const listenPort = customPort !== undefined ? customPort : port;
+  const server = app.listen(listenPort, () => {
+    logger.info(`DebCompose HTTP Server running at http://localhost:${server.address().port}`);
   });
+  return server;
 }

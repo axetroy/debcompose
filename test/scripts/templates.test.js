@@ -36,6 +36,43 @@ describe('generatePostinst', () => {
     assert.ok(script.includes('ERROR:'));
     assert.ok(script.includes('exit 1'));
   });
+
+  describe('onInstallError strategy', () => {
+    it('default (stop) does not include rollback function', () => {
+      const script = generatePostinst(manifest);
+      assert.ok(!script.includes('rollback()'));
+      assert.ok(!script.includes('INSTALLED='));
+    });
+
+    it('"stop" explicitly does not include rollback code', () => {
+      const script = generatePostinst(manifest, { onInstallError: 'stop' });
+      assert.ok(!script.includes('rollback()'));
+      assert.ok(!script.includes('INSTALLED='));
+    });
+
+    it('"rollback" includes rollback function and tracking variable', () => {
+      const script = generatePostinst(manifest, { onInstallError: 'rollback' });
+      assert.ok(script.includes('rollback()'));
+      assert.ok(script.includes('INSTALLED=""'));
+      assert.ok(script.includes('$INSTALLED'));
+    });
+
+    it('"rollback" still errors and exits on failure', () => {
+      const script = generatePostinst(manifest, { onInstallError: 'rollback' });
+      assert.ok(script.includes('ERROR:'));
+      assert.ok(script.includes('exit 1'));
+    });
+
+    it('"rollback" calls rollback function before exit', () => {
+      const script = generatePostinst(manifest, { onInstallError: 'rollback' });
+      assert.ok(script.match(/rollback\s*\n\s*exit 1/), 'should call rollback before exit 1');
+    });
+
+    it('"rollback" tracks successfully installed packages', () => {
+      const script = generatePostinst(manifest, { onInstallError: 'rollback' });
+      assert.ok(script.includes('INSTALLED="$INSTALLED $pkg_name"'));
+    });
+  });
 });
 
 describe('generatePostrm', () => {

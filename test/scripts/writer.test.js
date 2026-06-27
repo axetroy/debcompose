@@ -52,6 +52,14 @@ describe('writePostinst', () => {
     const content = await readFile(join(tmpDir, 'postinst'), 'utf-8');
     assert.ok(content.includes('/opt/bundle'));
   });
+
+  it('writes rollback postinst with rollback function', async () => {
+    await writePostinst(tmpDir, manifest, { onInstallError: 'rollback' });
+
+    const content = await readFile(join(tmpDir, 'postinst'), 'utf-8');
+    assert.ok(content.includes('rollback()'));
+    assert.ok(content.includes('INSTALLED='));
+  });
 });
 
 describe('writePostrm', () => {

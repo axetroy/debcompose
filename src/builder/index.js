@@ -17,6 +17,7 @@ import { buildDeb, checkDpkgDeb } from '../packager/index.js';
  * @property {string} [architecture] - Target architecture (default: amd64)
  * @property {string} [maintainer]  - Maintainer string
  * @property {string} [description] - Description string
+ * @property {'stop' | 'rollback'} [onInstallError] - Behavior when a sub-package install fails (default: stop)
  */
 
 /**
@@ -114,6 +115,7 @@ export async function buildBundle(options) {
     priority,
     license,
     order,
+    onInstallError,
   } = options;
 
   if (!debDir) {
@@ -154,7 +156,7 @@ export async function buildBundle(options) {
       installedSize,
     });
 
-    await writePostinst(debianDir, manifest);
+    await writePostinst(debianDir, manifest, { onInstallError });
     await writePostrm(debianDir, manifest);
 
     const md5sums = await generateMd5sums(tmpDir);

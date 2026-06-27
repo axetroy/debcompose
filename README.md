@@ -123,6 +123,14 @@ debcompose serve
 
 Starts a web server at `http://localhost:3000` for creating and debugging bundles via a web UI.
 
+**Web UI features:**
+- **Upload** `.deb` files via drag-and-drop or file picker
+- **Reorder** packages with ↑↓ buttons to set installation order
+- **Preview** bundle structure before building (directory tree, package list)
+- **Build** with real-time progress bar and status polling
+- **Download** the generated `.deb` bundle
+- Error display with detailed failure information
+
 ### `build` — Build a bundle
 
 ```bash
@@ -176,6 +184,7 @@ You can set default configuration values using environment variables. These are 
 | `DEB_COMPOSE_PRIORITY` | `--priority` | Package priority | `optional` |
 | `DEB_COMPOSE_LICENSE` | `--license` | License identifier | (empty) |
 | `DEB_COMPOSE_PORT` | (server only) | HTTP server port | `3000` |
+| `DEB_COMPOSE_LOG_LEVEL` | (server only) | Log level (debug, info, warn, error) | `info` |
 
 Example:
 
@@ -202,11 +211,12 @@ product-installer.deb
 ├── DEBIAN/
 │   ├── control              # Package metadata
 │   ├── postinst             # Post-install script (installs sub-packages)
-│   └── postrm               # Post-remove script (removes sub-packages)
+│   ├── postrm               # Post-remove script (removes sub-packages)
+│   └── md5sums              # MD5 checksums for payload files
 │
 └── opt/
     └── bundle/
-        ├── manifest.json    # Package manifest
+        ├── manifest.json    # Package manifest (version + package list)
         ├── runtime.deb      # Sub-package
         ├── server.deb       # Sub-package
         └── client.deb       # Sub-package

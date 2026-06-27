@@ -123,7 +123,7 @@ export class BundleBuilder {
     });
 
     // Generate postinst/postrm using production templates
-    await writePostinst(debianDir, manifest);
+    await writePostinst(debianDir, manifest, { onInstallError: cfg.onInstallError });
     await writePostrm(debianDir, manifest);
 
     // Generate md5sums

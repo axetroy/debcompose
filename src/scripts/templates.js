@@ -13,17 +13,28 @@ function escapeShellString(str) {
 }
 
 /**
+ * @typedef {'stop' | 'rollback'} OnInstallErrorStrategy
+ */
+
+/**
  * Generate a postinst (post-installation) bash script.
  *
  * The script reads the manifest from /opt/bundle/manifest.json and
  * installs each sub-package in order using dpkg -i.
  * Package names are saved to a persistent file for postrm.
  *
+ * When onInstallError is "rollback", the script uninstalls all
+ * successfully installed packages in reverse order if any
+ * single package fails, then exits with error.
+ *
  * @param {import('../manifest/schema.js').Manifest} manifest
+ * @param {{ onInstallError?: OnInstallErrorStrategy }} [options]
  * @returns {string} Bash script content
  */
-export function generatePostinst(manifest) {
+export function generatePostinst(manifest, options = {}) {
+  const { onInstallError = 'stop' } = options;
   const version = escapeShellString(manifest.version);
+  const hasRollback = onInstallError === 'rollback';
 
   return `#!/bin/bash
 set -e
@@ -31,13 +42,28 @@ set -e
 MANIFEST_PATH="${MANIFEST_PATH}"
 DEB_DIR="${DEB_DIR}"
 LOG_FILE="${LOG_FILE}"
-PACKAGE_LIST_FILE="${PACKAGE_LIST_FILE}"
+PACKAGE_LIST_FILE="${PACKAGE_LIST_FILE}"${hasRollback ? `
+INSTALLED=""` : ''}
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
-}
+}${hasRollback ? `
 
-log "Bundle v${version} installation started"
+rollback() {
+    log "ROLLBACK: Installation failed, reverting installed packages"
+    for rb_pkg in $INSTALLED; do
+        log "ROLLBACK: Removing $rb_pkg"
+        dpkg -r "$rb_pkg" >> "$LOG_FILE" 2>&1 || true
+    done
+    log "ROLLBACK: Reverted all installed packages"
+}` : ''}
+
+# Detect upgrade vs fresh install ($2 is old version during upgrade)
+if [ -n "$2" ]; then
+    log "Bundle v${version} upgrade from v$2 started"
+else
+    log "Bundle v${version} fresh installation started"
+fi
 
 if [ ! -f "$MANIFEST_PATH" ]; then
     log "ERROR: Manifest not found at $MANIFEST_PATH"
@@ -56,20 +82,23 @@ awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_
         done
     fi
 
-    while IFS= read -r file; do
-        pkg_path="$DEB_DIR/$file"
+    while IFS='|' read -r pkg_name pkg_file; do
+        pkg_path="$DEB_DIR/$pkg_file"
         if [ ! -f "$pkg_path" ]; then
-            log "ERROR: Package file not found: $pkg_path"
+            log "ERROR: Package file not found: $pkg_path"${hasRollback ? `
+            rollback` : ''}
             exit 1
         fi
-        log "Installing: $file"
+        log "Installing: $pkg_file"
         if dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
-            log "Installed: $file"
+            log "Installed: $pkg_file"${hasRollback ? `
+            INSTALLED="$INSTALLED $pkg_name"` : ''}
         else
-            log "ERROR: Failed to install: $file"
+            log "ERROR: Failed to install: $pkg_file"${hasRollback ? `
+            rollback` : ''}
             exit 1
         fi
-    done < <(awk -F'"' '/"file": "/ {print $4}' "$MANIFEST_PATH")
+    done < <(awk -F'"' 'BEGIN{ORS=""} /"name": "/{n=$4} /"file": "/{print n "|" $4 "\n"}' "$MANIFEST_PATH")
 
     log "Bundle v${version} installation completed"
 } &
