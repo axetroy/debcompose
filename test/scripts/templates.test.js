@@ -37,6 +37,12 @@ describe('generatePostinst', () => {
     assert.ok(script.includes('exit 1'));
   });
 
+  it('logs ExitCode on success and failure', () => {
+    const script = generatePostinst(manifest);
+    assert.ok(script.includes('ExitCode=0'));
+    assert.ok(script.includes('ExitCode=$exit_code'));
+  });
+
   describe('onInstallError strategy', () => {
     it('default (stop) does not include rollback function', () => {
       const script = generatePostinst(manifest);
@@ -101,5 +107,11 @@ describe('generatePostrm', () => {
     const script = generatePostrm(manifest);
     assert.ok(!script.includes('exit 1'));
     assert.ok(script.includes('WARN'));
+  });
+
+  it('logs ExitCode on removal success and failure', () => {
+    const script = generatePostrm(manifest);
+    assert.ok(script.includes('ExitCode=0'));
+    assert.ok(script.includes('ExitCode=$exit_code'));
   });
 });

@@ -91,10 +91,11 @@ awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_
         fi
         log "Installing: $pkg_file"
         if dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
-            log "Installed: $pkg_file"${hasRollback ? `
+            log "ExitCode=0 Installed: $pkg_file"${hasRollback ? `
             INSTALLED="$INSTALLED $pkg_name"` : ''}
         else
-            log "ERROR: Failed to install: $pkg_file"${hasRollback ? `
+            exit_code=$?
+            log "ExitCode=$exit_code ERROR: Failed to install: $pkg_file"${hasRollback ? `
             rollback` : ''}
             exit 1
         fi
@@ -156,9 +157,10 @@ rm -f "$PACKAGE_LIST_FILE"
     for name in $PACKAGE_NAMES; do
         log "Removing: $name"
         if dpkg -r "$name" >> "$LOG_FILE" 2>&1; then
-            log "Removed: $name"
+            log "ExitCode=0 Removed: $name"
         else
-            log "WARN: Failed to remove: $name (may not be installed)"
+            exit_code=$?
+            log "ExitCode=$exit_code WARN: Failed to remove: $name (may not be installed)"
         fi
     done
 

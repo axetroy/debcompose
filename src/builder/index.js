@@ -1,12 +1,12 @@
-import { mkdir, mkdtemp, cp, rm, stat, readdir, readFile, writeFile } from 'node:fs/promises';
-import { join, extname } from 'node:path';
-import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, cp, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { DebComposeError, ErrorCode } from '../error/index.js';
 import { generateManifest, writeManifest } from '../manifest/index.js';
 import { writeControl } from '../control/index.js';
 import { writePostinst, writePostrm } from '../scripts/index.js';
 import { buildDeb, checkDpkgDeb } from '../packager/index.js';
+import { calculateInstalledSize, generateMd5sums } from './utils.js';
 
 /**
  * @typedef {Object} BuildOptions
@@ -15,6 +15,10 @@ import { buildDeb, checkDpkgDeb } from '../packager/index.js';
  * @property {string} [version]     - Bundle version (default: 1.0.0)
  * @property {string} [package]     - Bundle package name (auto-detected from first .deb)
  * @property {string} [architecture] - Target architecture (default: amd64)
+ * @property {string} [section]     - Package section (default: misc)
+ * @property {string} [priority]    - Package priority (default: optional)
+ * @property {string} [license]     - Package license
+ * @property {string[]} [order]     - Custom package order
  * @property {string} [maintainer]  - Maintainer string
  * @property {string} [description] - Description string
  * @property {'stop' | 'rollback'} [onInstallError] - Behavior when a sub-package install fails (default: stop)
@@ -26,65 +30,6 @@ import { buildDeb, checkDpkgDeb } from '../packager/index.js';
  * @property {import('../manifest/schema.js').Manifest} manifest - Generated manifest
  * @property {boolean} dpkgDebAvailable - Whether dpkg-deb is available
  */
-
-/**
- * Calculate the total installed size (in kilobytes) of all .deb files in a directory.
- * @param {string} dir - Directory containing .deb files
- * @returns {Promise<number>} Size in KB (rounded up)
- */
-async function calculateInstalledSize(dir) {
-  const entries = await readdir(dir);
-  let totalBytes = 0;
-
-  for (const entry of entries) {
-    if (extname(entry).toLowerCase() !== '.deb') {
-      continue;
-    }
-    const { size } = await stat(join(dir, entry));
-    totalBytes += size;
-  }
-
-  return Math.ceil(totalBytes / 1024);
-}
-
-/**
- * Generate DEBIAN/md5sums for all payload files.
- * Skips the DEBIAN metadata directory.
- * @param {string} buildDir - Root of the .deb build directory
- * @returns {Promise<string>} md5sums content
- */
-async function generateMd5sums(buildDir) {
-  const lines = [];
-
-  async function walk(dir, relativePrefix) {
-    const entries = await readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(fullPath, join(relativePrefix, entry.name));
-      } else {
-        const content = await readFile(fullPath);
-        const hash = createHash('md5').update(content).digest('hex');
-        lines.push(`${hash}  ${join(relativePrefix, entry.name)}`);
-      }
-    }
-  }
-
-  const topEntries = await readdir(buildDir, { withFileTypes: true });
-  for (const entry of topEntries) {
-    if (entry.name === 'DEBIAN') continue;
-    const fullPath = join(buildDir, entry.name);
-    if (entry.isDirectory()) {
-      await walk(fullPath, entry.name);
-    } else {
-      const content = await readFile(fullPath);
-      const hash = createHash('md5').update(content).digest('hex');
-      lines.push(`${hash}  ${entry.name}`);
-    }
-  }
-
-  return lines.sort().join('\n') + '\n';
-}
 
 /**
  * Build a bundle .deb from a directory of sub-packages.

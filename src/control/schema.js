@@ -1,3 +1,5 @@
+import { DebComposeError, ErrorCode } from '../error/index.js';
+
 /**
  * @typedef {Object} ControlParams
  * @property {string} package         - Package name
@@ -60,7 +62,7 @@ export function validateControl(data) {
  * Create a validated control data object with defaults applied.
  * @param {ControlParams} params
  * @returns {ControlParams}
- * @throws {Error} Validation failure
+ * @throws {DebComposeError} Validation failure
  */
 export function createControlData(params) {
   const data = {};
@@ -74,7 +76,7 @@ export function createControlData(params) {
 
   const errors = validateControl(data);
   if (errors.length > 0) {
-    throw new Error(`invalid control data: ${errors.join('; ')}`);
+    throw new DebComposeError(ErrorCode.INVALID_INPUT, `invalid control data: ${errors.join('; ')}`);
   }
 
   return data;

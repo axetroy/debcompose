@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { DebComposeError, ErrorCode } from '../error/index.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,7 +20,10 @@ async function getField(debPath, field) {
     return stdout.trim();
   } catch (err) {
     const message = `failed to read ${field} from ${debPath}`;
-    throw new Error(`${message}: ${err.stderr?.trim() || err.message}`);
+    throw new DebComposeError(ErrorCode.BUILD_FAILED, message, {
+      path: debPath,
+      cause: err.stderr?.trim() || err.message,
+    });
   }
 }
 

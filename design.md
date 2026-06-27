@@ -179,10 +179,11 @@ product-installer/
 │   ├── control
 │   ├── postinst
 │   ├── postrm
-│   └── manifest.json
+│   └── md5sums
 │
 └── opt
     └── bundle
+        ├── manifest.json
         ├── runtime.deb
         ├── client.deb
         ├── server.deb

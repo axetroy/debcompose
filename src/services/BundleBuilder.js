@@ -1,58 +1,40 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { writeControl } from '../control/index.js';
 import { writePostinst, writePostrm } from '../scripts/index.js';
 import { writeManifest } from '../manifest/index.js';
 import { getPackageName } from '../deb/info.js';
 import { checkDpkgDeb, buildDeb } from '../packager/index.js';
+import { calculateInstalledSize, generateMd5sums } from '../builder/utils.js';
 
-async function calculateInstalledSize(dir) {
-  const entries = await fs.readdir(dir);
-  let totalBytes = 0;
-  for (const entry of entries) {
-    if (path.extname(entry).toLowerCase() !== '.deb') continue;
-    const { size } = await fs.stat(path.join(dir, entry));
-    totalBytes += size;
-  }
-  return Math.ceil(totalBytes / 1024);
-}
-
-async function generateMd5sums(buildDir) {
-  const lines = [];
-  async function walk(dir, relativePrefix) {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(fullPath, path.join(relativePrefix, entry.name));
-      } else {
-        const content = await fs.readFile(fullPath);
-        const hex = crypto.createHash('md5').update(content).digest('hex');
-        lines.push(`${hex}  ${path.join(relativePrefix, entry.name)}`);
-      }
-    }
-  }
-  const topEntries = await fs.readdir(buildDir, { withFileTypes: true });
-  for (const entry of topEntries) {
-    if (entry.name === 'DEBIAN') continue;
-    const fullPath = path.join(buildDir, entry.name);
-    if (entry.isDirectory()) {
-      await walk(fullPath, entry.name);
-    } else {
-      const content = await fs.readFile(fullPath);
-      const hex = crypto.createHash('md5').update(content).digest('hex');
-      lines.push(`${hex}  ${entry.name}`);
-    }
-  }
-  return lines.sort().join('\n') + '\n';
-}
-
+/**
+ * High-level bundle builder used by the HTTP server.
+ *
+ * Orchestrates the full build pipeline:
+ * 1. Copy .deb files into opt/bundle/
+ * 2. Extract package info from .deb files → manifest
+ * 3. Generate manifest.json, control, postinst, postrm, md5sums
+ * 4. Invoke dpkg-deb -b to produce the final .deb
+ */
 export class BundleBuilder {
+  /**
+   * @param {Object} [config] - Default configuration overrides
+   */
   constructor(config = {}) {
+    /** @type {Object} */
     this.config = config;
   }
 
+  /**
+   * Build a bundle .deb from a list of packages.
+   *
+   * @param {Object} params
+   * @param {Array<{name: string, path: string}>} params.packages - Sub-packages to bundle
+   * @param {string[]} params.order - Installation order (package names)
+   * @param {string} [params.outputDir='dist'] - Output directory
+   * @param {Object} [params.config] - Build configuration (version, arch, etc.)
+   * @returns {Promise<{success: boolean, bundlePath?: string, bundleId?: string, error?: string}>}
+   */
   async build({ packages, order, outputDir = 'dist', config = {} }) {
     const cfg = { ...this.config, ...config };
     const bundleRoot = path.join(outputDir, `bundle_${Date.now()}`);
@@ -64,7 +46,6 @@ export class BundleBuilder {
 
     // Copy deb files in specified order and collect package info
     const manifestPackages = [];
-    const debFilesInBundle = [];
     const nameToFile = {};
 
     for (const pkg of order) {
@@ -72,7 +53,6 @@ export class BundleBuilder {
       if (pkgInfo?.path && (await this._exists(pkgInfo.path))) {
         const destName = path.basename(pkgInfo.path);
         await fs.copyFile(pkgInfo.path, path.join(debDir, destName));
-        debFilesInBundle.push(destName);
         try {
           const pkgName = await getPackageName(path.join(debDir, destName));
           manifestPackages.push({ name: pkgName, file: destName });
@@ -150,6 +130,11 @@ export class BundleBuilder {
     }
   }
 
+  /**
+   * Check if a file exists on disk.
+   * @param {string} filePath
+   * @returns {Promise<boolean>}
+   */
   async _exists(filePath) {
     try {
       await fs.access(filePath);
