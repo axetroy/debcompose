@@ -112,9 +112,11 @@ awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_
 # Launch sub-package installation in background to avoid dpkg lock contention
 {
     if command -v fuser >/dev/null 2>&1; then
-        while fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do
-            sleep 1
+        MAX_WAIT=30 WAIT=0
+        while [ $WAIT -lt $MAX_WAIT ] && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do
+            sleep 1; WAIT=$((WAIT + 1))
         done
+        sleep 2
     fi
 
     while IFS='|' read -r pkg_name pkg_file; do
@@ -125,19 +127,25 @@ awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_
             exit 1
         fi
         log "Installing: $pkg_file"
-        if dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
-            log "ExitCode=0 Installed: $pkg_file"${hasRollback ? `
-            INSTALLED="$INSTALLED $pkg_name"` : ''}
-        else
-            exit_code=$?
-            log "ExitCode=$exit_code ERROR: Failed to install: $pkg_file"${hasRollback ? `
+        RETRY=0 MAX_RETRY=3
+        while [ $RETRY -lt $MAX_RETRY ]; do
+            if dpkg -i "$pkg_path" >> "$LOG_FILE" 2>&1; then
+                log "ExitCode=0 Installed: $pkg_file"${hasRollback ? `
+                INSTALLED="$INSTALLED $pkg_name"` : ''}
+                break
+            fi
+            exit_code=$?; RETRY=$((RETRY + 1))
+            [ $RETRY -lt $MAX_RETRY ] && sleep 2
+        done
+        if [ $RETRY -ge $MAX_RETRY ]; then
+            log "ExitCode=$exit_code ERROR: Failed to install after $MAX_RETRY retries: $pkg_file"${hasRollback ? `
             rollback` : ''}
             exit 1
         fi
     done < <(awk -F'"' 'BEGIN{ORS=""} /"name": "/{n=$4} /"file": "/{print n "|" $4 "\n"}' "$MANIFEST_PATH")
 
     log "Bundle v${version} installation completed"
-} &
+} & disown
 
 exit 0
 `;
@@ -193,9 +201,11 @@ rm -f "$PACKAGE_LIST_FILE"
 # Launch sub-package removal in background to avoid dpkg lock contention
 {
     if command -v fuser >/dev/null 2>&1; then
-        while fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do
-            sleep 1
+        MAX_WAIT=30 WAIT=0
+        while [ $WAIT -lt $MAX_WAIT ] && fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1; do
+            sleep 1; WAIT=$((WAIT + 1))
         done
+        sleep 2
     fi
 
     for name in $PACKAGE_NAMES; do
@@ -212,7 +222,7 @@ rm -f "$PACKAGE_LIST_FILE"
     rm -f "\${PACKAGE_LIST_FILE}.bak"
 
     log "Bundle v${version} removal completed"
-} &
+} & disown
 
 exit 0
 `;
