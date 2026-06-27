@@ -109,11 +109,20 @@ fi
 mkdir -p "$(dirname "$PACKAGE_LIST_FILE")"
 awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_PATH" > "$PACKAGE_LIST_FILE"
 
-# Launch sub-package installation in background to avoid dpkg lock contention
+# Launch sub-package installation in background to avoid dpkg lock contention.
+# trap + /dev/null + disown = survive sudo session cleanup (SIGHUP from closed PTY).
 {
-    # Debug: log the awk output to verify manifest parsing
-    log "DEBUG: Packages to install:"
-    awk -F'"' 'BEGIN{ORS=""} /"name": "/{n=$4} /"file": "/{print "DEBUG:   " n "|" $4 "\n"}' "$MANIFEST_PATH" >> "$LOG_FILE"
+    trap '' HUP
+    log "DEBUG: BG install started (PID=$$ PPID=$PPID)"
+
+    # Debug: verify manifest and DEB_DIR
+    log "DEBUG: DEB_DIR=$DEB_DIR"
+    ls -la "$DEB_DIR/" >> "$LOG_FILE" 2>&1 || true
+    log "DEBUG: MANIFEST_PATH=$MANIFEST_PATH ($(wc -c < "$MANIFEST_PATH" 2>&1) bytes)"
+    head -c 500 "$MANIFEST_PATH" >> "$LOG_FILE" 2>&1
+
+    log "DEBUG: Manifest packages:"
+    awk -F'"' 'BEGIN{ORS=""} /"name": "/{n=$4} /"file": "/{print "  " n "|" $4 "\n"}' "$MANIFEST_PATH" >> "$LOG_FILE"
 
     while IFS='|' read -r pkg_name pkg_file; do
         pkg_path="$DEB_DIR/$pkg_file"
@@ -144,7 +153,7 @@ awk -F'"' '/"name": "/ {a[++c]=$4} END{for(i=c;i>0;i--) print a[i]}' "$MANIFEST_
     done < <(awk -F'"' 'BEGIN{ORS=""} /"name": "/{n=$4} /"file": "/{print n "|" $4 "\n"}' "$MANIFEST_PATH")
 
     log "Bundle v${version} installation completed"
-} & disown
+} < /dev/null & disown
 
 exit 0
 `;
@@ -199,6 +208,7 @@ rm -f "$PACKAGE_LIST_FILE"
 
 # Launch sub-package removal in background to avoid dpkg lock contention
 {
+    trap '' HUP
     for name in $PACKAGE_NAMES; do
         RETRY=0 MAX_RETRY=5
         while [ $RETRY -lt $MAX_RETRY ]; do
@@ -219,7 +229,7 @@ rm -f "$PACKAGE_LIST_FILE"
     rm -f "\${PACKAGE_LIST_FILE}.bak"
 
     log "Bundle v${version} removal completed"
-} & disown
+} < /dev/null & disown
 
 exit 0
 `;
