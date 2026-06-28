@@ -7,51 +7,52 @@ import { ConsoleLogger } from './logger/index.js';
 
 const logger = new ConsoleLogger(process.env.DEB_COMPOSE_LOG_LEVEL || 'info');
 
+const BUILD_OPTIONS = [
+  ['-o, --output <dir>', 'Output directory (default: current directory)'],
+  ['-v, --version <ver>', 'Bundle version (default: 1.0.0)'],
+  ['-n, --name <name>', 'Package name (default: auto-detected)'],
+  ['--arch <arch>', 'Target architecture (amd64, i386, arm64, armhf, etc.; default: amd64)'],
+  ['--maintainer <str>', 'Maintainer field (default: "Unknown <unknown>")'],
+  ['--description <str>', 'Description field (default: auto-generated)'],
+  ['--section <str>', 'Package section (default: misc)'],
+  ['--priority <str>', 'Package priority (optional, required, etc.; default: optional)'],
+  ['--license <str>', 'License identifier (optional)'],
+  ['--order <names>', 'Comma-separated package names for installation order'],
+  ['-h, --help', 'Show this help message'],
+];
+
+function showHelp(title, usage, commands = []) {
+  const lines = [`\n${title}`];
+  if (commands.length > 0) {
+    lines.push('\nCommands:');
+    commands.forEach(([cmd, desc]) => lines.push(`  ${cmd.padEnd(14)} ${desc}`));
+  }
+  lines.push('\nOptions:');
+  BUILD_OPTIONS.forEach(([opt, desc]) => lines.push(`  ${opt.padEnd(22)} ${desc}`));
+  lines.push('\nControl file format: https://www.debian.org/doc/debian-policy/ch-controlfields.html');
+  console.log(lines.join('\n'));
+}
+
 function showGlobalHelp() {
-  console.log('\nDebCompose\nUsage:\n' +
+  showHelp('DebCompose', null, [
+    ['serve', 'Start the HTTP server'],
+    ['build', 'Build a deb bundle from directory of .deb files'],
+  ]);
+  console.log('\nUsage:\n' +
     '  debcompose serve                       - Start the HTTP server\n' +
     '  debcompose build <dir> [options]      - Build a bundle from .deb directory\n' +
     '  debcompose <dir> [options]            - Build bundle (shortcut)\n\n' +
-    'Commands:\n' +
-    '  serve     Start web server for bundle debugging\n' +
-    '  build     Build a deb bundle from directory of .deb files\n\n' +
-    'Options (for build):\n' +
-    '  -o, --output <dir>       Output directory (default: current directory)\n' +
-    '  -v, --version <ver>      Bundle version (default: 1.0.0)\n' +
-    '  -n, --name <name>        Package name (default: auto-detected)\n' +
-    '      --arch <arch>        Target architecture (amd64, i386, arm64, armhf, etc.; default: amd64)\n' +
-    '      --maintainer <str>   Maintainer field (default: "Unknown <unknown>")\n' +
-    '      --description <str>  Description field (default: auto-generated)\n' +
-    '      --section <str>      Package section (default: misc)\n' +
-    '      --priority <str>     Package priority (optional, required, etc.; default: optional)\n' +
-    '      --license <str>      License identifier (optional)\n\n' +
-    'Control file format: https://www.debian.org/doc/debian-policy/ch-controlfields.html\n\n' +
     'Run \'debcompose build --help\' or \'debcompose --help\' for detailed options.\n');
 }
 
 function showBuildHelp() {
-  console.log('\nDebCompose Build\nUsage:\n' +
-    '  debcompose build <dir> [options]\n' +
-    '  debcompose <dir> [options]\n\n' +
-    'Options:\n' +
-    '  -o, --output <dir>       Output directory (default: current directory)\n' +
-    '  -v, --version <ver>      Bundle version (default: 1.0.0)\n' +
-    '  -n, --name <name>        Package name (default: auto-detected)\n' +
-    '      --arch <arch>        Target architecture (amd64, i386, arm64, armhf, etc.; default: amd64)\n' +
-    '      --maintainer <str>   Maintainer field (default: "Unknown <unknown>")\n' +
-    '      --description <str>  Description field (default: auto-generated)\n' +
-    '      --section <str>      Package section (default: misc)\n' +
-    '      --priority <str>     Package priority (optional, required, etc.; default: optional)\n' +
-    '      --license <str>      License identifier (optional)\n' +
-    '      --on-install-error   Error recovery strategy: stop or rollback (default: stop)\n' +
-    '  -h, --help               Show this help message\n\n' +
-    'Control file format: https://www.debian.org/doc/debian-policy/ch-controlfields.html\n\n' +
-    'Examples:\n' +
+  showHelp('DebCompose Build', null);
+  console.log('\nExamples:\n' +
     '  debcompose build ./packages\n' +
     '  debcompose build ./packages --output ./dist --version 2.0.0 --name my-app\n' +
     '  debcompose ./packages -o ./dist -v 1.2.0 -n my-product\n' +
     '  debcompose build ./packages --arch arm64 --section utils --priority optional\n' +
-    '  debcompose build ./packages --on-install-error rollback\n');
+    '  debcompose build ./packages --order runtime,driver,server,client\n');
 }
 
 function parseArgs(args) {
@@ -66,7 +67,7 @@ function parseArgs(args) {
     section: process.env.DEB_COMPOSE_SECTION || 'misc',
     priority: process.env.DEB_COMPOSE_PRIORITY || 'optional',
     license: process.env.DEB_COMPOSE_LICENSE || '',
-    onInstallError: process.env.DEB_COMPOSE_ON_INSTALL_ERROR || 'stop',
+    order: null,
   };
 
   let i = 0;
@@ -96,11 +97,8 @@ function parseArgs(args) {
       options.priority = args[++i];
     } else if (arg === '--license') {
       options.license = args[++i];
-    } else if (arg === '--on-install-error') {
-      const strategy = args[++i];
-      if (strategy === 'stop' || strategy === 'rollback') {
-        options.onInstallError = strategy;
-      }
+    } else if (arg === '--order') {
+      options.order = args[++i].split(',').map(s => s.trim()).filter(Boolean);
     } else if (!arg.startsWith('-') && !options.dir) {
       options.dir = arg;
     }
@@ -111,9 +109,9 @@ function parseArgs(args) {
   return options;
 }
 
-export async function runBuildCommand(args) {
-  const parsedArgs = args || process.argv.slice(2);
-  const options = parseArgs(parsedArgs);
+export async function runBuildCommand() {
+  const args = process.argv.slice(2);
+  const options = parseArgs(args);
   
   if (options.help) {
     showBuildHelp();
@@ -146,7 +144,7 @@ export async function runBuildCommand(args) {
       section: options.section,
       priority: options.priority,
       license: options.license,
-      onInstallError: options.onInstallError,
+      order: options.order,
     });
     
     logger.info(`Bundle created: ${result.outputPath}`);
@@ -156,7 +154,7 @@ export async function runBuildCommand(args) {
   }
 }
 
-export async function runServeCommand(_args) {
+export async function runServeCommand() {
   const { startServer } = await import('./server.js');
   startServer();
 }
@@ -172,13 +170,13 @@ const DEFAULT_COMMAND = 'build';
 async function handleCommand(command, userArgs) {
   const handler = commandHandlers[command];
   if (handler) {
-    await handler(userArgs);
+    await handler();
     return;
   }
   
   if (!command.startsWith('-')) {
-    userArgs.unshift(DEFAULT_COMMAND);
-    await runBuildCommand(userArgs);
+    process.argv.splice(2, 0, DEFAULT_COMMAND);
+    await runBuildCommand();
     return;
   }
   

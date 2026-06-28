@@ -51,6 +51,7 @@ const envConfig = {
   section: process.env.DEB_COMPOSE_SECTION || "misc",
   priority: process.env.DEB_COMPOSE_PRIORITY || "optional",
   license: process.env.DEB_COMPOSE_LICENSE || "",
+  onInstallError: process.env.DEB_COMPOSE_ON_INSTALL_ERROR || "stop",
 };
 
 // Request logging middleware
@@ -96,7 +97,7 @@ const upload = multer({
   fileFilter,
 });
 
-// Multer and file filter error handler
+// Multer error handler
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError || (err && err.message === 'Only .deb files are allowed')) {
     return res.status(400).json({ error: err.message });
@@ -176,7 +177,7 @@ app.post("/api/bundles/preview", async (req, res) => {
     packages: previewPackages,
   };
 
-  const bundleDirName = config?.name || config?.package || envConfig.name || 'bundle';
+  const bundleDirName = config?.name || envConfig.name || 'bundle';
 
   const structure = [
     { path: "DEBIAN/", type: "dir" },
@@ -201,6 +202,7 @@ app.post("/api/bundles/preview", async (req, res) => {
       maintainer: config?.maintainer || envConfig.maintainer,
       section: config?.section || envConfig.section,
       priority: config?.priority || envConfig.priority,
+      onInstallError: config?.onInstallError || envConfig.onInstallError,
     },
     warning: hasMissingFiles ? 'Some uploaded files were not found on the server. Please re-upload.' : undefined,
   });
@@ -268,16 +270,14 @@ app.post("/api/bundles/generate", async (req, res) => {
         outputDir: "dist",
         config: {
           name: config?.name || envConfig.name,
-          package: config?.name || envConfig.name,
           version: config?.version || envConfig.version,
           arch: config?.arch || envConfig.arch,
-          architecture: config?.arch || envConfig.arch,
           maintainer: config?.maintainer || envConfig.maintainer,
           description: config?.description || envConfig.description,
           section: config?.section || envConfig.section,
           priority: config?.priority || envConfig.priority,
           license: config?.license || envConfig.license,
-          onInstallError: config?.onInstallError || 'stop',
+          onInstallError: config?.onInstallError || envConfig.onInstallError,
         },
       });
 
@@ -368,6 +368,14 @@ app.get("/api/bundles/:id", async (req, res) => {
   } catch {
     res.status(404).json({ error: "Bundle not found" });
   }
+});
+
+// Multer error handler (must be before global error handler)
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError || (err && err.message === 'Only .deb files are allowed')) {
+    return res.status(400).json({ error: err.message });
+  }
+  next(err);
 });
 
 // Global error handling middleware

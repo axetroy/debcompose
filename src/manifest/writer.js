@@ -27,7 +27,7 @@ export async function writeManifest(manifest, outputDir) {
  */
 export async function generateManifest(debDir, bundleVersion, order) {
   const entries = await readdir(debDir);
-  let debFiles = entries
+  const debFiles = entries
     .filter(f => extname(f).toLowerCase() === '.deb')
     .sort();
 
@@ -37,55 +37,17 @@ export async function generateManifest(debDir, bundleVersion, order) {
     });
   }
 
-  // If order is provided, reorder debFiles accordingly and validate
-  if (order && order.length > 0) {
-    const fileByName = {};
-    const nameByFile = {};
-    const errors = [];
-
-    for (const file of debFiles) {
-      const filePath = join(debDir, file);
-      try {
-        const name = await getPackageName(filePath);
-        fileByName[name] = file;
-        nameByFile[file] = name;
-      } catch (err) {
-        errors.push({ file, message: err.message });
-      }
-    }
-
-    if (errors.length > 0) {
-      throw new DebComposeError(ErrorCode.BUILD_FAILED, 'failed to read some .deb files', {
-        path: debDir,
-        errors,
-      });
-    }
-
-    const orderedFiles = [];
-    for (const name of order) {
-      if (fileByName[name]) {
-        orderedFiles.push(fileByName[name]);
-      }
-    }
-
-    // Append any files not in the order list at the end
-    for (const file of debFiles) {
-      if (!orderedFiles.includes(file)) {
-        orderedFiles.push(file);
-      }
-    }
-
-    debFiles = orderedFiles;
-  }
-
-  const packages = [];
+  // Extract package names from all deb files once
+  const fileByName = {};
+  const nameByFile = {};
   const errors = [];
 
   for (const file of debFiles) {
     const filePath = join(debDir, file);
     try {
       const name = await getPackageName(filePath);
-      packages.push({ name, file });
+      fileByName[name] = file;
+      nameByFile[file] = name;
     } catch (err) {
       errors.push({ file, message: err.message });
     }
@@ -97,6 +59,30 @@ export async function generateManifest(debDir, bundleVersion, order) {
       errors,
     });
   }
+
+  // If order is provided, reorder debFiles accordingly
+  let orderedFiles = [...debFiles];
+  if (order && order.length > 0) {
+    const sorted = [];
+    for (const name of order) {
+      if (fileByName[name]) {
+        sorted.push(fileByName[name]);
+      }
+    }
+    // Append any files not in the order list at the end
+    for (const file of debFiles) {
+      if (!sorted.includes(file)) {
+        sorted.push(file);
+      }
+    }
+    orderedFiles = sorted;
+  }
+
+  // Build packages array using the already-extracted names
+  const packages = orderedFiles.map(file => ({
+    name: nameByFile[file],
+    file,
+  }));
 
   return createManifest(bundleVersion, packages);
 }
