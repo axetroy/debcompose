@@ -246,14 +246,14 @@ dpkg -i bundle.deb
        ↓
   postinst executes
        ↓
-  Reads opt/bundle/manifest.json
-       ↓
-  Installs packages in manifest order
+  Installs sub-packages in bundle order (pre-generated at build time)
        ↓
   dpkg -i runtime.deb
   dpkg -i server.deb
   dpkg -i client.deb
 ```
+
+> **Note**: Install commands are pre-generated from manifest at build time and embedded in postinst. The runtime does not read manifest.json.
 
 ### Uninstallation Flow
 
@@ -262,14 +262,15 @@ dpkg -r product-installer
        ↓
   postrm executes (remove/purge)
        ↓
-  Reads opt/bundle/manifest.json
-       ↓
-  Removes packages in REVERSE order
+  Removes sub-packages in REVERSE order (pre-generated at build time)
        ↓
   dpkg -r client
   dpkg -r server
   dpkg -r runtime
 ```
+
+> **Note**: Remove commands are pre-generated from manifest at build time and embedded in postrm. The runtime does not read manifest.json.
+
 
 All operations are logged to `/var/log/<bundle-package-name>.log`.
 
